@@ -2,6 +2,16 @@
 
 A simplified MVP for dermatology biologic optimization with cost-saving recommendations.
 
+## 🔄 Update Your Codespace (Run this when Claude pushes changes)
+
+When the codebase is updated, pull the latest changes:
+
+```bash
+git pull && npm install && npx prisma db push
+```
+
+Then restart your dev server (Ctrl+C to stop, then `npm run dev` to restart).
+
 ## Features
 
 - 📊 **CSV Upload System** - Upload formulary data, claims data, and patient eligibility
