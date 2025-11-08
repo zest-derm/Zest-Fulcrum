@@ -105,9 +105,12 @@ export async function searchKnowledge(
   similarity: number;
 }>> {
   const queryEmbedding = await generateEmbedding(query);
+  const embeddingStr = `[${queryEmbedding.join(',')}]`;
 
   // Use pgvector cosine distance for similarity search
-  const results = await prisma.$queryRaw<any[]>`
+  const categoryFilter = category ? `AND category = '${category}'` : '';
+
+  const results = await prisma.$queryRawUnsafe<any[]>(`
     SELECT
       id,
       title,
@@ -115,13 +118,13 @@ export async function searchKnowledge(
       category,
       "sourceFile",
       "sourceUrl",
-      1 - (embedding <=> ${JSON.stringify(queryEmbedding)}::vector) as similarity
+      1 - (embedding <=> '${embeddingStr}'::vector) as similarity
     FROM "KnowledgeDocument"
     WHERE embedding IS NOT NULL
-    ${category ? `AND category = ${category}` : ''}
-    ORDER BY embedding <=> ${JSON.stringify(queryEmbedding)}::vector
+    ${categoryFilter}
+    ORDER BY embedding <=> '${embeddingStr}'::vector
     LIMIT ${limit}
-  `;
+  `);
 
   return results.map(r => ({
     id: r.id,
