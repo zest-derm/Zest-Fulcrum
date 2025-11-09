@@ -30,39 +30,56 @@ export async function GET(request: NextRequest) {
         );
 
       case 'formulary':
-        const formulary = await prisma.formularyDrug.findMany({
-          select: {
-            id: true,
-            drugName: true,
-            genericName: true,
-            drugClass: true,
-            tier: true,
-            annualCostWAC: true,
-            requiresPA: true,
+        // Get formulary datasets (grouped by uploadLog)
+        const formularyLogs = await prisma.uploadLog.findMany({
+          where: { uploadType: 'FORMULARY' },
+          include: {
+            plan: {
+              select: {
+                planName: true,
+                payerName: true,
+              },
+            },
+            _count: {
+              select: { formularyDrugs: true },
+            },
           },
-          orderBy: [
-            { tier: 'asc' },
-            { drugName: 'asc' },
-          ],
+          orderBy: { uploadedAt: 'desc' },
         });
 
-        return NextResponse.json(formulary);
+        return NextResponse.json(
+          formularyLogs.map(log => ({
+            id: log.id,
+            datasetLabel: log.datasetLabel || log.fileName,
+            planName: log.plan?.planName || 'Unknown',
+            payerName: log.plan?.payerName || '',
+            drugCount: log._count.formularyDrugs,
+            uploadedAt: log.uploadedAt,
+            fileName: log.fileName,
+          }))
+        );
 
       case 'claims':
-        const claims = await prisma.pharmacyClaim.findMany({
-          select: {
-            id: true,
-            patientId: true,
-            drugName: true,
-            fillDate: true,
-            daysSupply: true,
-            outOfPocket: true,
+        // Get claims datasets (grouped by uploadLog)
+        const claimsLogs = await prisma.uploadLog.findMany({
+          where: { uploadType: 'CLAIMS' },
+          include: {
+            _count: {
+              select: { claims: true },
+            },
           },
-          orderBy: { fillDate: 'desc' },
-          take: 500, // Limit to prevent overwhelming the UI
+          orderBy: { uploadedAt: 'desc' },
         });
 
-        return NextResponse.json(claims);
+        return NextResponse.json(
+          claimsLogs.map(log => ({
+            id: log.id,
+            datasetLabel: log.datasetLabel || log.fileName,
+            claimCount: log._count.claims,
+            uploadedAt: log.uploadedAt,
+            fileName: log.fileName,
+          }))
+        );
 
       case 'uploads':
         const uploads = await prisma.uploadLog.findMany({
@@ -107,13 +124,23 @@ export async function DELETE(request: NextRequest) {
         break;
 
       case 'formulary':
-        await prisma.formularyDrug.delete({
+        // Delete all formulary drugs with this uploadLogId
+        await prisma.formularyDrug.deleteMany({
+          where: { uploadLogId: id },
+        });
+        // Delete the upload log
+        await prisma.uploadLog.delete({
           where: { id },
         });
         break;
 
       case 'claims':
-        await prisma.pharmacyClaim.delete({
+        // Delete all claims with this uploadLogId
+        await prisma.pharmacyClaim.deleteMany({
+          where: { uploadLogId: id },
+        });
+        // Delete the upload log
+        await prisma.uploadLog.delete({
           where: { id },
         });
         break;

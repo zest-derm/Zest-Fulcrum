@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { Upload, CheckCircle, AlertCircle, FileSpreadsheet, Database, Users, BookOpen, FolderOpen } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Upload, CheckCircle, AlertCircle, FileSpreadsheet, Database, Users, BookOpen, FolderOpen, X } from 'lucide-react';
 import Link from 'next/link';
 
 type UploadType = 'formulary' | 'claims' | 'eligibility' | 'knowledge';
@@ -14,11 +14,83 @@ interface UploadResult {
   message?: string;
 }
 
+interface InsurancePlan {
+  id: string;
+  planName: string;
+  payerName: string;
+}
+
 export default function AdminPage() {
   const [uploading, setUploading] = useState<UploadType | null>(null);
   const [results, setResults] = useState<Record<string, UploadResult>>({});
+  const [showModal, setShowModal] = useState(false);
+  const [pendingUpload, setPendingUpload] = useState<{ type: UploadType, files: FileList } | null>(null);
+  const [datasetLabel, setDatasetLabel] = useState('');
+  const [selectedPlanId, setSelectedPlanId] = useState('');
+  const [insurancePlans, setInsurancePlans] = useState<InsurancePlan[]>([]);
+  const [creatingNewPlan, setCreatingNewPlan] = useState(false);
+  const [newPlanName, setNewPlanName] = useState('');
+  const [newPayerName, setNewPayerName] = useState('');
 
-  const handleUpload = async (type: UploadType, files: FileList) => {
+  useEffect(() => {
+    loadInsurancePlans();
+  }, []);
+
+  const loadInsurancePlans = async () => {
+    try {
+      const res = await fetch('/api/insurance-plans');
+      const data = await res.json();
+      setInsurancePlans(data);
+    } catch (error) {
+      console.error('Error loading insurance plans:', error);
+    }
+  };
+
+  const handleFileSelected = (type: UploadType, files: FileList) => {
+    if (type === 'formulary' || type === 'claims') {
+      // Show modal for dataset labeling
+      setPendingUpload({ type, files });
+      setDatasetLabel('');
+      setSelectedPlanId('');
+      setCreatingNewPlan(false);
+      setShowModal(true);
+    } else {
+      // No labeling needed for eligibility and knowledge
+      handleUpload(type, files, null, null);
+    }
+  };
+
+  const handleModalSubmit = async () => {
+    if (!pendingUpload) return;
+
+    let planId = selectedPlanId;
+
+    // Create new plan if needed
+    if (creatingNewPlan && newPlanName && newPayerName) {
+      try {
+        const res = await fetch('/api/insurance-plans', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            planName: newPlanName,
+            payerName: newPayerName,
+          }),
+        });
+        const newPlan = await res.json();
+        planId = newPlan.id;
+        await loadInsurancePlans();
+      } catch (error) {
+        alert('Failed to create new insurance plan');
+        return;
+      }
+    }
+
+    setShowModal(false);
+    handleUpload(pendingUpload.type, pendingUpload.files, datasetLabel, planId);
+    setPendingUpload(null);
+  };
+
+  const handleUpload = async (type: UploadType, files: FileList, label: string | null, planId: string | null) => {
     setUploading(type);
 
     // For knowledge base, support multiple files
@@ -62,11 +134,13 @@ export default function AdminPage() {
         }
       }));
     } else {
-      // Single file upload for CSVs or single knowledge file
+      // Single file upload
       const file = files[0];
       const formData = new FormData();
       formData.append('file', file);
       formData.append('type', type);
+      if (label) formData.append('datasetLabel', label);
+      if (planId) formData.append('planId', planId);
 
       try {
         const res = await fetch('/api/upload', {
@@ -85,6 +159,15 @@ export default function AdminPage() {
     }
 
     setUploading(null);
+  };
+
+  const getDatasetLabelGuidance = (type: UploadType) => {
+    if (type === 'formulary') {
+      return 'e.g., "Aetna December 2024 Formulary" (Insurance Plan + Month + Year)';
+    } else if (type === 'claims') {
+      return 'e.g., "Molina Q1 2024 claims" (Insurance + Quarter + Year)';
+    }
+    return '';
   };
 
   const UploadCard = ({
@@ -128,7 +211,7 @@ export default function AdminPage() {
                 multiple={type === 'knowledge'}
                 onChange={(e) => {
                   const files = e.target.files;
-                  if (files && files.length > 0) handleUpload(type, files);
+                  if (files && files.length > 0) handleFileSelected(type, files);
                 }}
                 disabled={isUploading}
               />
@@ -259,6 +342,115 @@ export default function AdminPage() {
           </div>
         </div>
       </div>
+
+      {/* Dataset Labeling Modal */}
+      {showModal && pendingUpload && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="flex justify-between items-start mb-4">
+              <h2 className="text-xl font-semibold">Label Your Dataset</h2>
+              <button onClick={() => setShowModal(false)} className="text-gray-400 hover:text-gray-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <p className="text-sm text-gray-600 mb-4">
+              Please provide a label for this dataset to help you manage multiple uploads.
+            </p>
+
+            <div className="space-y-4">
+              <div>
+                <label className="label">Dataset Label *</label>
+                <input
+                  type="text"
+                  className="input w-full"
+                  value={datasetLabel}
+                  onChange={(e) => setDatasetLabel(e.target.value)}
+                  placeholder={getDatasetLabelGuidance(pendingUpload.type)}
+                  required
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  {getDatasetLabelGuidance(pendingUpload.type)}
+                </p>
+              </div>
+
+              {pendingUpload.type === 'formulary' && (
+                <div>
+                  <label className="label">Insurance Plan *</label>
+                  {!creatingNewPlan ? (
+                    <>
+                      <select
+                        className="input w-full"
+                        value={selectedPlanId}
+                        onChange={(e) => setSelectedPlanId(e.target.value)}
+                        required
+                      >
+                        <option value="">Select a plan</option>
+                        {insurancePlans.map(plan => (
+                          <option key={plan.id} value={plan.id}>
+                            {plan.planName} ({plan.payerName})
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        onClick={() => setCreatingNewPlan(true)}
+                        className="text-sm text-primary-600 hover:text-primary-700 mt-2"
+                      >
+                        + Create New Plan
+                      </button>
+                    </>
+                  ) : (
+                    <div className="space-y-2">
+                      <input
+                        type="text"
+                        className="input w-full"
+                        value={newPlanName}
+                        onChange={(e) => setNewPlanName(e.target.value)}
+                        placeholder="Plan Name (e.g., Aetna)"
+                        required
+                      />
+                      <input
+                        type="text"
+                        className="input w-full"
+                        value={newPayerName}
+                        onChange={(e) => setNewPayerName(e.target.value)}
+                        placeholder="Payer Name (e.g., Aetna Inc.)"
+                        required
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setCreatingNewPlan(false)}
+                        className="text-sm text-gray-600 hover:text-gray-700"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                type="button"
+                onClick={() => setShowModal(false)}
+                className="btn btn-secondary flex-1"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleModalSubmit}
+                disabled={!datasetLabel || (pendingUpload.type === 'formulary' && !selectedPlanId && !creatingNewPlan)}
+                className="btn btn-primary flex-1"
+              >
+                Upload
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

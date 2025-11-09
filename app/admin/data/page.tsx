@@ -13,23 +13,22 @@ interface KnowledgeDoc {
   chunkCount: number;
 }
 
-interface FormularyDrug {
+interface FormularyDataset {
   id: string;
-  drugName: string;
-  genericName: string;
-  tier: number;
-  drugClass: string;
-  annualCostWAC: number;
-  requiresPA: boolean;
+  datasetLabel: string;
+  planName: string;
+  payerName: string;
+  drugCount: number;
+  uploadedAt: Date;
+  fileName: string;
 }
 
-interface Claim {
+interface ClaimDataset {
   id: string;
-  patientId: string;
-  drugName: string;
-  fillDate: Date;
-  daysSupply: number;
-  outOfPocket: number;
+  datasetLabel: string;
+  claimCount: number;
+  uploadedAt: Date;
+  fileName: string;
 }
 
 interface UploadLog {
@@ -44,8 +43,8 @@ interface UploadLog {
 export default function DataManagementPage() {
   const [activeTab, setActiveTab] = useState<DataTab>('knowledge');
   const [knowledge, setKnowledge] = useState<KnowledgeDoc[]>([]);
-  const [formulary, setFormulary] = useState<FormularyDrug[]>([]);
-  const [claims, setClaims] = useState<Claim[]>([]);
+  const [formulary, setFormulary] = useState<FormularyDataset[]>([]);
+  const [claims, setClaims] = useState<ClaimDataset[]>([]);
   const [uploads, setUploads] = useState<UploadLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState<string | null>(null);
@@ -237,26 +236,23 @@ export default function DataManagementPage() {
               </div>
             )}
 
-            {/* Formulary Table */}
+            {/* Formulary Datasets Table */}
             {activeTab === 'formulary' && (
               <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
                     <tr>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Drug Name
+                        Dataset Label
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Generic
+                        Insurance Plan
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Class
+                        Drugs
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Tier
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Annual Cost
+                        Uploaded
                       </th>
                       <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Actions
@@ -264,34 +260,27 @@ export default function DataManagementPage() {
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {formulary.map((drug) => (
-                      <tr key={drug.id} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                          {drug.drugName}
+                    {formulary.map((dataset) => (
+                      <tr key={dataset.id} className="hover:bg-gray-50">
+                        <td className="px-6 py-4 text-sm font-medium text-gray-900">
+                          {dataset.datasetLabel}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-500">
+                          {dataset.planName}
+                          {dataset.payerName && <span className="text-xs text-gray-400"> ({dataset.payerName})</span>}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {drug.genericName}
+                          {dataset.drugCount} drugs
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {drug.drugClass.replace(/_/g, ' ')}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm">
-                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                            drug.tier === 1 ? 'bg-green-100 text-green-800' :
-                            drug.tier === 2 ? 'bg-yellow-100 text-yellow-800' :
-                            'bg-red-100 text-red-800'
-                          }`}>
-                            Tier {drug.tier}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          ${drug.annualCostWAC?.toLocaleString()}
+                          {new Date(dataset.uploadedAt).toLocaleDateString()}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                           <button
-                            onClick={() => handleDelete(drug.id, 'formulary')}
-                            disabled={deleting === drug.id}
+                            onClick={() => handleDelete(dataset.id, 'formulary')}
+                            disabled={deleting === dataset.id}
                             className="text-red-600 hover:text-red-900 disabled:opacity-50"
+                            title="Delete entire dataset"
                           >
                             <Trash2 className="w-4 h-4 inline" />
                           </button>
@@ -303,7 +292,7 @@ export default function DataManagementPage() {
                 {formulary.length === 0 && (
                   <div className="text-center py-12">
                     <Database className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                    <p className="text-gray-500">No formulary data uploaded</p>
+                    <p className="text-gray-500">No formulary datasets uploaded</p>
                   </div>
                 )}
               </div>
