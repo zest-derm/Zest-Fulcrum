@@ -1,162 +1,85 @@
 # Zest Biologic Decision Support System
 
-A simplified MVP for dermatology biologic optimization with cost-saving recommendations.
+## 🚀 Opening a New Codespace (First Time Setup)
 
-## 🔄 Update Your Codespace (Run this when Claude pushes changes)
-
-When the codebase is updated, pull the latest changes:
+Copy and paste this entire block into your terminal:
 
 ```bash
-git pull && npm install && npx prisma db push
-```
-
-Then restart your dev server (Ctrl+C to stop, then `npm run dev` to restart).
-
-## Features
-
-- 📊 **CSV Upload System** - Upload formulary data, claims data, and patient eligibility
-- 📚 **Local Knowledge Base** - PDF/Markdown upload with pgvector embeddings (no Pinecone!)
-- 🎯 **Simplified Assessment** - Quick patient assessment with auto-population
-- 💰 **Cost Savings** - 1-3 evidence-based recommendations for dose reduction or formulary switches
-- 🔍 **Local RAG** - PostgreSQL + pgvector for document retrieval
-
-## Quick Start
-
-1. **Install dependencies:**
-```bash
-npm install
-```
-
-2. **Set up database:**
-```bash
-# Create .env file
-cp .env.example .env
-# Edit .env with your PostgreSQL connection string
-
-# Push schema to database
-npm run db:push
-
-# Seed with sample data
-npm run db:seed
-```
-
-3. **Run development server:**
-```bash
-npm run dev
-```
-
-Open [http://localhost:3000](http://localhost:3000)
-
-## Codespace Setup (First-Time Setup)
-
-When opening a new codespace, run these commands in order:
-
-### 1. Switch to Node.js 20
-```bash
-nvm use 20
-```
-
-### 2. Install Dependencies
-```bash
-npm install
-```
-
-### 3. Start and Configure PostgreSQL
-```bash
-# Disable SSL for dev environment
-sudo sed -i "s/ssl = on/ssl = off/" /etc/postgresql/16/main/postgresql.conf
-
-# Configure authentication
-sudo sed -i 's/peer/trust/g' /etc/postgresql/16/main/pg_hba.conf
-
-# Start PostgreSQL (if not already running)
-sudo pg_ctlcluster 16 main start 2>/dev/null || echo "PostgreSQL already running"
-
-# Wait for startup
-sleep 2
-
-# Create database
-sudo -u postgres createdb zest_biologic_dss 2>/dev/null || echo "Database already exists"
-
-# Set postgres user password
-sudo -u postgres psql -c "ALTER USER postgres PASSWORD 'password';"
-
-# Enable password authentication
-sudo sed -i 's/trust/md5/g' /etc/postgresql/16/main/pg_hba.conf
-
-# Restart PostgreSQL to apply changes
-sudo pg_ctlcluster 16 main restart
-```
-
-### 4. Set Up Database Schema
-```bash
-# Push Prisma schema to database
-npx prisma db push
-```
-
-### 5. Start Development Server
-
-**Clean start (kills any stuck ports first - recommended):**
-```bash
-fuser -k 3000/tcp 2>/dev/null; fuser -k 3001/tcp 2>/dev/null; fuser -k 3002/tcp 2>/dev/null; npm run dev
-```
-
-Or just:
-```bash
-npm run dev
-```
-
-**All-in-One Command** (Copy-paste this entire block):
-```bash
-nvm use 20 && \
+sudo apt-get update && \
+sudo apt-get install -y postgresql-16 postgresql-16-pgvector && \
+sudo service postgresql start && \
+sleep 2 && \
+sudo -i -u postgres psql -c "ALTER USER postgres PASSWORD 'password';" && \
+sudo -i -u postgres psql -c "CREATE DATABASE zest_biologic_dss;" && \
 npm install && \
-sudo sed -i "s/ssl = on/ssl = off/" /etc/postgresql/16/main/postgresql.conf && \
-sudo sed -i 's/peer/trust/g' /etc/postgresql/16/main/pg_hba.conf && \
-sudo pg_ctlcluster 16 main start 2>/dev/null && \
-sleep 2 && \
-sudo -u postgres createdb zest_biologic_dss 2>/dev/null && \
-sudo -u postgres psql -c "ALTER USER postgres PASSWORD 'password';" && \
-sudo sed -i 's/trust/md5/g' /etc/postgresql/16/main/pg_hba.conf && \
-sudo pg_ctlcluster 16 main restart && \
-sleep 2 && \
 npx prisma db push && \
 npm run dev
 ```
 
-## Architecture
+**That's it.** Your app will be running on http://localhost:3000
 
-- **Framework:** Next.js 14 (App Router)
-- **Database:** PostgreSQL + pgvector extension
-- **ORM:** Prisma
-- **Styling:** Tailwind CSS
-- **LLM:** OpenAI (optional - falls back to rule-based)
+---
 
-## Data Upload
+## 🔄 Pulling Changes from Claude
 
-Upload CSVs via the admin dashboard:
-- **Formulary:** Drug name, tier, costs, PA requirements
-- **Claims:** Patient ID, drug, fill dates, costs
-- **Eligibility:** Patient demographics and plan info
-- **Knowledge Base:** PDFs or Markdown for clinical evidence
+When Claude pushes changes and you need to update your codespace:
 
-## Simplified Workflow
+```bash
+git pull && \
+npm install && \
+npx prisma db push && \
+npm run dev
+```
 
-1. Select patient
-2. Fill simple assessment form (biologic, indication, DLQI, stability)
-3. System auto-populates claims, plan, formulary
-4. Generates 1-3 cost-saving recommendations with evidence
-5. Accept or reject recommendations
+---
 
-## Tech Stack
+## 🛠️ When You Get Database Errors
 
-- Next.js 14 + TypeScript
-- Tailwind CSS
-- Prisma ORM + PostgreSQL
-- pgvector for embeddings
-- OpenAI API (embeddings + optional LLM)
-- Papa Parse (CSV parsing)
-- pdf-parse (PDF extraction)
+If you see "Can't reach database server" or any database errors:
 
-## License
+```bash
+sudo service postgresql start && \
+sleep 2 && \
+npm run dev
+```
 
-Proprietary
+---
+
+## 📝 Setting Your OpenAI API Key (One Time Only)
+
+The API key is in `/workspaces/Zest/.env` but you need to add it manually since GitHub blocks committing API keys.
+
+Open the file and replace the empty quotes with your key:
+
+```bash
+OPENAI_API_KEY="your-key-here"
+```
+
+Or run this command with your actual key:
+
+```bash
+echo 'OPENAI_API_KEY="sk-your-actual-key-here"' >> /workspaces/Zest/.env
+```
+
+Then restart the dev server (Ctrl+C, then `npm run dev`).
+
+---
+
+## 🆘 Nuclear Option (If Everything is Broken)
+
+If nothing works, run this to completely reset:
+
+```bash
+sudo service postgresql restart && \
+sleep 2 && \
+sudo -i -u postgres psql -c "DROP DATABASE IF EXISTS zest_biologic_dss;" && \
+sudo -i -u postgres psql -c "CREATE DATABASE zest_biologic_dss;" && \
+git pull && \
+npm install && \
+npx prisma db push && \
+fuser -k 3000/tcp 3001/tcp 3002/tcp 2>/dev/null ; npm run dev
+```
+
+---
+
+**That's everything you need. Just copy-paste these commands and you're good to go.**
