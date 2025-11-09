@@ -100,6 +100,13 @@ export default async function RecommendationsPage({ params }: PageProps) {
   const currentBiologic = assessment.patient.currentBiologics[0];
   const quadrantLabel = assessment.recommendations[0]?.quadrant.replace(/_/g, ' ').toUpperCase();
 
+  // Find current drug's tier from formulary
+  const currentDrugTier = currentBiologic
+    ? assessment.patient.plan.formularyDrugs.find(
+        drug => drug.drugName.toLowerCase() === currentBiologic.drugName.toLowerCase()
+      )?.tier
+    : undefined;
+
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
       {/* Header */}
@@ -112,8 +119,8 @@ export default async function RecommendationsPage({ params }: PageProps) {
           <span>•</span>
           <span>
             Current: {currentBiologic?.drugName || 'None'} {currentBiologic?.dose} {currentBiologic?.frequency}
-            {currentBiologic && assessment.recommendations.length > 0 && assessment.recommendations[0]?.tier && (
-              <> • Tier {assessment.recommendations[0].tier}</>
+            {currentBiologic && currentDrugTier && (
+              <> • Tier {currentDrugTier}</>
             )}
           </span>
         </div>
