@@ -65,14 +65,21 @@ Formulary Status:
 - Tier: ${formularyDrug?.tier || 'Unknown'}
 - Requires PA: ${formularyDrug?.requiresPA ? 'Yes' : 'No'}
 
+IMPORTANT FORMULARY RULES:
+- Tier 1-2 without PA = OPTIMAL formulary position
+- Tier 3+ OR requires PA = NON-OPTIMAL (suboptimal) formulary position
+- If Tier 3+, patient should be considered for switch to lower tier alternative
+
 Based on this information, determine:
 1. Is the patient stable enough to consider dose reduction? (DLQI ≤5 and stable ≥6 months typically required)
-2. Is a formulary switch recommended? (High tier or PA required while stable)
+2. Is a formulary switch recommended? (YES if Tier 3+ or PA required, especially when stable)
 3. What quadrant is the patient in?
-   - stable_formulary_aligned: Stable disease, optimal formulary position
-   - stable_non_formulary: Stable disease, non-optimal formulary (high tier or PA)
-   - unstable_formulary_aligned: Unstable disease, optimal formulary position
-   - unstable_non_formulary: Unstable disease, non-optimal formulary
+   - stable_formulary_aligned: Stable disease AND Tier 1-2 without PA
+   - stable_non_formulary: Stable disease BUT Tier 3+ OR PA required
+   - unstable_formulary_aligned: Unstable disease AND Tier 1-2 without PA
+   - unstable_non_formulary: Unstable disease AND (Tier 3+ OR PA required)
+
+CRITICAL: If current drug is Tier 3+, the quadrant MUST be "stable_non_formulary" or "unstable_non_formulary" depending on stability.
 
 Return ONLY a JSON object with this exact structure:
 {
@@ -103,14 +110,22 @@ async function retrieveRelevantEvidence(
 ): Promise<string[]> {
   const queries: string[] = [];
 
-  if (triage.canDoseReduce) {
+  // Prioritize switch evidence for non-formulary patients
+  if (triage.shouldSwitch) {
+    queries.push(`biosimilar switching ${drugName} ${diagnosis} efficacy`);
+    queries.push(`${drugName} to biosimilar switch outcomes ${diagnosis}`);
+    queries.push(`formulary optimization biologics ${diagnosis} cost effectiveness`);
+  }
+
+  // Add dose reduction evidence only for formulary-aligned patients
+  if (triage.canDoseReduce && !triage.shouldSwitch) {
     queries.push(`${drugName} dose reduction interval extension ${diagnosis} stable patients`);
     queries.push(`${drugName} extended dosing efficacy ${diagnosis}`);
   }
 
-  if (triage.shouldSwitch) {
-    queries.push(`biosimilar switching ${drugName} ${diagnosis}`);
-    queries.push(`formulary optimization biologics ${diagnosis}`);
+  // If no specific queries, get general evidence
+  if (queries.length === 0) {
+    queries.push(`${drugName} ${diagnosis} treatment guidelines`);
   }
 
   // Retrieve evidence for each query
@@ -139,8 +154,10 @@ async function getLLMRecommendationSuggestions(
     ? contraindications.map(c => c.type).join(', ')
     : 'None';
 
+  // Show top 10 formulary options, prioritizing lower tiers
   const formularyText = formularyOptions
-    .slice(0, 5)
+    .filter(d => d.drugName.toLowerCase() !== currentDrug.toLowerCase()) // Exclude current drug
+    .slice(0, 10)
     .map(d => `${d.drugName} (${d.drugClass}, Tier ${d.tier}, PA: ${d.requiresPA ? 'Yes' : 'No'}, Annual Cost: $${d.annualCostWAC})`)
     .join('\n');
 
@@ -168,12 +185,18 @@ ${formularyText}
 Clinical Evidence:
 ${evidenceText}
 
-Based on this information, generate 1-3 specific cost-saving recommendations. For EACH recommendation, provide:
+RECOMMENDATION PRIORITY RULES:
+1. If quadrant is "stable_non_formulary" (Tier 3+): PRIORITIZE switching to Tier 1-2 alternatives (biosimilars or preferred drugs)
+2. If quadrant is "stable_formulary_aligned" (Tier 1-2): Consider dose reduction to extend intervals
+3. If quadrant is "unstable_*": Focus on therapeutic optimization, not cost reduction
+4. Always prefer lower tier options when switching (Tier 1 > Tier 2 > Tier 3)
+
+Based on this information, generate 1-3 specific cost-saving recommendations ranked by expected cost savings and clinical benefit. For EACH recommendation, provide:
 1. Type (DOSE_REDUCTION, SWITCH_TO_BIOSIMILAR, SWITCH_TO_PREFERRED, THERAPEUTIC_SWITCH, or OPTIMIZE_CURRENT)
-2. Specific drug name (if switching)
-3. New dose (if dose reduction, extract from evidence)
-4. New frequency (if dose reduction, extract interval from evidence - e.g., "every 12 weeks")
-5. Detailed rationale citing clinical evidence
+2. Specific drug name (if switching - MUST specify the exact drug from formulary options)
+3. New dose (if dose reduction, extract from evidence; if switching, use "Per label")
+4. New frequency (if dose reduction, extract interval from evidence; if switching, use "Per label")
+5. Detailed rationale citing clinical evidence and cost benefit
 6. Monitoring plan
 
 Return ONLY a JSON object with this exact structure:
@@ -305,9 +328,23 @@ export async function generateLLMRecommendations(
 
   // Step 1: LLM Triage
   const triage = await triagePatient(assessment, genericDrugName, currentFormularyDrug || null);
+  console.log('Triage result:', JSON.stringify(triage));
 
   // Step 2: Targeted RAG Retrieval
   const evidence = await retrieveRelevantEvidence(genericDrugName, assessment.diagnosis, triage);
+  console.log(`Retrieved ${evidence.length} evidence chunks`);
+
+  // Sort formulary drugs to prioritize lower tiers
+  const sortedFormularyDrugs = [...patient.plan.formularyDrugs].sort((a, b) => {
+    // Sort by tier first (lower is better)
+    if (a.tier !== b.tier) return a.tier - b.tier;
+    // Then by PA requirement (no PA is better)
+    if (a.requiresPA !== b.requiresPA) return a.requiresPA ? 1 : -1;
+    // Then by cost (lower is better)
+    const costA = a.annualCostWAC?.toNumber() || 0;
+    const costB = b.annualCostWAC?.toNumber() || 0;
+    return costA - costB;
+  });
 
   // Step 3: LLM Recommendations
   const llmRecs = await getLLMRecommendationSuggestions(
@@ -315,7 +352,7 @@ export async function generateLLMRecommendations(
     genericDrugName,
     triage,
     evidence,
-    patient.plan.formularyDrugs,
+    sortedFormularyDrugs,
     currentFormularyDrug || null,
     patient.contraindications
   );
