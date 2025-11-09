@@ -81,6 +81,22 @@ export function getQuadrant(isStable: boolean, isFormularyOptimal: boolean): str
 }
 
 /**
+ * Check if a drug is approved for a patient's diagnosis
+ */
+export function isDrugIndicatedForDiagnosis(
+  drug: FormularyDrug,
+  diagnosis: DiagnosisType
+): boolean {
+  // If no indications specified, assume it's available for all (for backward compatibility)
+  if (!drug.approvedIndications || drug.approvedIndications.length === 0) {
+    return true;
+  }
+
+  // Check if the diagnosis is in the approved indications list
+  return drug.approvedIndications.includes(diagnosis);
+}
+
+/**
  * Check if a drug is contraindicated for a patient
  */
 export function checkContraindications(
@@ -198,6 +214,7 @@ export async function generateRecommendations(
     // Switch to biosimilar or formulary-preferred
     const alternatives = patientWithFormulary.plan.formularyDrugs
       .filter(drug =>
+        isDrugIndicatedForDiagnosis(drug, assessment.diagnosis) &&
         (drug.biosimilarOf?.toLowerCase() === currentBiologic.drugName.toLowerCase() ||
          drug.drugClass === currentFormularyDrug?.drugClass) &&
         drug.tier < (currentFormularyDrug?.tier || 999)
@@ -274,6 +291,7 @@ export async function generateRecommendations(
     // unstable_non_formulary: Switch to preferred with different mechanism
     const alternatives = patientWithFormulary.plan.formularyDrugs
       .filter(drug =>
+        isDrugIndicatedForDiagnosis(drug, assessment.diagnosis) &&
         drug.tier <= 2 &&
         drug.drugName !== currentBiologic.drugName
       )

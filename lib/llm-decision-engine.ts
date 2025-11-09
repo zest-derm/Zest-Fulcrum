@@ -194,6 +194,23 @@ async function retrieveRelevantEvidence(
 }
 
 /**
+ * Filter drugs by approved indications for the patient's diagnosis
+ */
+function filterByDiagnosis(
+  drugs: FormularyDrug[],
+  diagnosis: DiagnosisType
+): FormularyDrug[] {
+  return drugs.filter(drug => {
+    // If no indications specified, include it (for backward compatibility)
+    if (!drug.approvedIndications || drug.approvedIndications.length === 0) {
+      return true;
+    }
+    // Check if the diagnosis is in the approved indications list
+    return drug.approvedIndications.includes(diagnosis);
+  });
+}
+
+/**
  * Filter out contraindicated drugs based on patient contraindications
  */
 function filterContraindicated(
@@ -418,17 +435,36 @@ export async function generateLLMRecommendations(
         take: 12,
       },
       contraindications: true,
-      plan: {
-        include: {
-          formularyDrugs: true,
-        },
-      },
+      plan: true,
     },
   });
 
   if (!patient || !patient.plan) {
     throw new Error('Patient or plan not found');
   }
+
+  // Get the most recent formulary upload for this plan
+  const mostRecentUpload = await prisma.uploadLog.findFirst({
+    where: {
+      uploadType: 'FORMULARY',
+      planId: patient.planId,
+    },
+    orderBy: { uploadedAt: 'desc' },
+    select: { id: true },
+  });
+
+  // Fetch formulary drugs from the most recent upload only
+  const formularyDrugs = mostRecentUpload
+    ? await prisma.formularyDrug.findMany({
+        where: {
+          planId: patient.planId,
+          uploadLogId: mostRecentUpload.id,
+        },
+      })
+    : [];
+
+  // Add formularyDrugs to patient.plan for compatibility with existing code
+  patient.plan.formularyDrugs = formularyDrugs;
 
   const currentBiologic = patient.currentBiologics[0];
   const hasCurrentBiologic = !!currentBiologic;
@@ -460,9 +496,10 @@ export async function generateLLMRecommendations(
   const evidence = await retrieveRelevantEvidence(genericDrugName, assessment.diagnosis, triage);
   console.log(`Retrieved ${evidence.length} evidence chunks`);
 
-  // Step 4: Filter out contraindicated drugs
-  const safeFormularyDrugs = filterContraindicated(patient.plan.formularyDrugs, patient.contraindications);
-  console.log(`Filtered formulary: ${patient.plan.formularyDrugs.length} total → ${safeFormularyDrugs.length} safe`);
+  // Step 4: Filter drugs by diagnosis, then by contraindications
+  const diagnosisAppropriateDrugs = filterByDiagnosis(patient.plan.formularyDrugs, assessment.diagnosis);
+  const safeFormularyDrugs = filterContraindicated(diagnosisAppropriateDrugs, patient.contraindications);
+  console.log(`Filtered formulary: ${patient.plan.formularyDrugs.length} total → ${diagnosisAppropriateDrugs.length} for ${assessment.diagnosis} → ${safeFormularyDrugs.length} safe`);
 
   // Sort safe formulary drugs to prioritize lower tiers
   const sortedFormularyDrugs = [...safeFormularyDrugs].sort((a, b) => {
