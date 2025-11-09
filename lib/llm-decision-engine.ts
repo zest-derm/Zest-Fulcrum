@@ -474,9 +474,16 @@ export async function generateLLMRecommendations(
     ? await normalizeToGeneric(currentBiologic.drugName)
     : null;
 
-  // Find current drug in formulary
-  const currentFormularyDrug = genericDrugName
-    ? patient.plan.formularyDrugs.find(drug => drug.drugName.toLowerCase() === genericDrugName.toLowerCase()) ?? null
+  // Find current drug in formulary (match by brand name OR generic name)
+  const currentFormularyDrug = currentBiologic
+    ? patient.plan.formularyDrugs.find(drug => {
+        const brandMatch = drug.drugName.toLowerCase() === currentBiologic.drugName.toLowerCase();
+        const genericMatch = genericDrugName && (
+          drug.genericName.toLowerCase() === genericDrugName.toLowerCase() ||
+          drug.genericName.toLowerCase().startsWith(genericDrugName.toLowerCase() + '-') // biosimilar suffix
+        );
+        return brandMatch || genericMatch;
+      }) ?? null
     : null;
 
   // Step 1: Determine quadrant using hard-coded rules (don't trust LLM for this)

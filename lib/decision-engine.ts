@@ -193,10 +193,14 @@ export async function generateRecommendations(
     throw new Error('No current biologic found for patient');
   }
 
-  // Find current drug in formulary
-  const currentFormularyDrug = patientWithFormulary.plan.formularyDrugs.find(
-    drug => drug.drugName.toLowerCase() === currentBiologic.drugName.toLowerCase()
-  );
+  // Find current drug in formulary (match by brand name OR generic name for biosimilars)
+  const currentFormularyDrug = patientWithFormulary.plan.formularyDrugs.find(drug => {
+    const brandMatch = drug.drugName.toLowerCase() === currentBiologic.drugName.toLowerCase();
+    // Also check generic name to catch biosimilars (e.g., Amjevita = adalimumab-atto)
+    const genericMatch = drug.genericName.toLowerCase() === currentBiologic.drugName.toLowerCase() ||
+                        drug.genericName.toLowerCase().startsWith(currentBiologic.drugName.toLowerCase() + '-');
+    return brandMatch || genericMatch;
+  });
 
   // Determine stability and formulary status
   const isStable = determineStability(assessment.dlqiScore, assessment.monthsStable);
