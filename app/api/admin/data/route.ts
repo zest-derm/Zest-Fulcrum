@@ -4,6 +4,13 @@ import { prisma } from '@/lib/db';
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const type = searchParams.get('type');
+  const action = searchParams.get('action');
+  const id = searchParams.get('id');
+
+  // Handle dataset view/download
+  if (action === 'view' && id) {
+    return handleViewDataset(type, id);
+  }
 
   try {
     switch (type) {
@@ -152,6 +159,137 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ success: true });
   } catch (error: any) {
     console.error('Error deleting data:', error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}
+
+async function handleViewDataset(type: string | null, id: string) {
+  try {
+    let csvData = '';
+
+    switch (type) {
+      case 'formulary':
+        const formularyDrugs = await prisma.formularyDrug.findMany({
+          where: { uploadLogId: id },
+          include: {
+            plan: {
+              select: {
+                planName: true,
+                payerName: true,
+              },
+            },
+          },
+        });
+
+        if (formularyDrugs.length === 0) {
+          return NextResponse.json({ error: 'No data found' }, { status: 404 });
+        }
+
+        // Generate CSV headers
+        const formularyHeaders = [
+          'Drug Name',
+          'Generic Name',
+          'Drug Class',
+          'Tier',
+          'Requires PA',
+          'Step Therapy Required',
+          'Annual Cost (WAC)',
+          'Member Copay T1',
+          'Member Copay T2',
+          'Member Copay T3',
+          'Biosimilar Of',
+          'Approved Indications',
+          'Insurance Plan',
+          'Payer Name',
+        ];
+
+        csvData = formularyHeaders.join(',') + '\n';
+
+        // Generate CSV rows
+        formularyDrugs.forEach(drug => {
+          const row = [
+            `"${drug.drugName}"`,
+            `"${drug.genericName}"`,
+            drug.drugClass,
+            drug.tier,
+            drug.requiresPA,
+            drug.stepTherapyRequired,
+            drug.annualCostWAC?.toString() || '',
+            drug.memberCopayT1?.toString() || '',
+            drug.memberCopayT2?.toString() || '',
+            drug.memberCopayT3?.toString() || '',
+            drug.biosimilarOf || '',
+            `"${drug.approvedIndications.join('; ')}"`,
+            `"${drug.plan.planName}"`,
+            `"${drug.plan.payerName}"`,
+          ];
+          csvData += row.join(',') + '\n';
+        });
+        break;
+
+      case 'claims':
+        const claims = await prisma.pharmacyClaim.findMany({
+          where: { uploadLogId: id },
+          include: {
+            patient: {
+              select: {
+                externalId: true,
+                firstName: true,
+                lastName: true,
+              },
+            },
+          },
+        });
+
+        if (claims.length === 0) {
+          return NextResponse.json({ error: 'No data found' }, { status: 404 });
+        }
+
+        // Generate CSV headers
+        const claimsHeaders = [
+          'Patient ID',
+          'Patient Name',
+          'Drug Name',
+          'NDC Code',
+          'Fill Date',
+          'Days Supply',
+          'Quantity',
+          'Out of Pocket',
+          'Plan Paid',
+        ];
+
+        csvData = claimsHeaders.join(',') + '\n';
+
+        // Generate CSV rows
+        claims.forEach(claim => {
+          const row = [
+            claim.patient.externalId || '',
+            `"${claim.patient.firstName} ${claim.patient.lastName}"`,
+            `"${claim.drugName}"`,
+            claim.ndcCode || '',
+            claim.fillDate.toISOString().split('T')[0],
+            claim.daysSupply,
+            claim.quantity,
+            claim.outOfPocket?.toString() || '',
+            claim.planPaid?.toString() || '',
+          ];
+          csvData += row.join(',') + '\n';
+        });
+        break;
+
+      default:
+        return NextResponse.json({ error: 'Invalid type' }, { status: 400 });
+    }
+
+    // Return CSV with download headers
+    return new NextResponse(csvData, {
+      headers: {
+        'Content-Type': 'text/csv',
+        'Content-Disposition': `attachment; filename="${type}-dataset-${id}.csv"`,
+      },
+    });
+  } catch (error: any) {
+    console.error('Error viewing dataset:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

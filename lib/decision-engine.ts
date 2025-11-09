@@ -135,11 +135,7 @@ export async function generateRecommendations(
         take: 12,
       },
       contraindications: true,
-      plan: {
-        include: {
-          formularyDrugs: true,
-        },
-      },
+      plan: true,
     },
   });
 
@@ -147,13 +143,42 @@ export async function generateRecommendations(
     throw new Error('Patient not found');
   }
 
-  const currentBiologic = patient.currentBiologics[0]; // For MVP, assume one biologic
+  // Get the most recent formulary upload for this plan
+  const mostRecentUpload = await prisma.uploadLog.findFirst({
+    where: {
+      uploadType: 'FORMULARY',
+      planId: patient.planId,
+    },
+    orderBy: { uploadedAt: 'desc' },
+    select: { id: true },
+  });
+
+  // Fetch formulary drugs from the most recent upload only
+  const formularyDrugs = mostRecentUpload
+    ? await prisma.formularyDrug.findMany({
+        where: {
+          planId: patient.planId,
+          uploadLogId: mostRecentUpload.id,
+        },
+      })
+    : [];
+
+  // Add formularyDrugs to patient.plan for compatibility with existing code
+  const patientWithFormulary = {
+    ...patient,
+    plan: {
+      ...patient.plan,
+      formularyDrugs,
+    },
+  } as PatientWithData;
+
+  const currentBiologic = patientWithFormulary.currentBiologics[0]; // For MVP, assume one biologic
   if (!currentBiologic) {
     throw new Error('No current biologic found for patient');
   }
 
   // Find current drug in formulary
-  const currentFormularyDrug = patient.plan.formularyDrugs.find(
+  const currentFormularyDrug = patientWithFormulary.plan.formularyDrugs.find(
     drug => drug.drugName.toLowerCase() === currentBiologic.drugName.toLowerCase()
   );
 
@@ -171,7 +196,7 @@ export async function generateRecommendations(
 
   if (quadrant === 'stable_non_formulary') {
     // Switch to biosimilar or formulary-preferred
-    const alternatives = patient.plan.formularyDrugs
+    const alternatives = patientWithFormulary.plan.formularyDrugs
       .filter(drug =>
         (drug.biosimilarOf?.toLowerCase() === currentBiologic.drugName.toLowerCase() ||
          drug.drugClass === currentFormularyDrug?.drugClass) &&
@@ -180,7 +205,7 @@ export async function generateRecommendations(
       .sort((a, b) => a.tier - b.tier);
 
     for (const alt of alternatives.slice(0, 2)) {
-      const contraCheck = checkContraindications(alt, patient.contraindications);
+      const contraCheck = checkContraindications(alt, patientWithFormulary.contraindications);
 
       recommendations.push({
         rank: recommendations.length + 1,
@@ -247,7 +272,7 @@ export async function generateRecommendations(
     });
   } else {
     // unstable_non_formulary: Switch to preferred with different mechanism
-    const alternatives = patient.plan.formularyDrugs
+    const alternatives = patientWithFormulary.plan.formularyDrugs
       .filter(drug =>
         drug.tier <= 2 &&
         drug.drugName !== currentBiologic.drugName
@@ -255,7 +280,7 @@ export async function generateRecommendations(
       .sort((a, b) => a.tier - b.tier);
 
     for (const alt of alternatives.slice(0, 2)) {
-      const contraCheck = checkContraindications(alt, patient.contraindications);
+      const contraCheck = checkContraindications(alt, patientWithFormulary.contraindications);
 
       recommendations.push({
         rank: recommendations.length + 1,

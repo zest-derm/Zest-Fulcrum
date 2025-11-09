@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Trash2, FileText, Database, Users, BookOpen, Calendar, AlertCircle, CheckCircle } from 'lucide-react';
+import { Trash2, FileText, Database, Users, BookOpen, Calendar, AlertCircle, CheckCircle, Eye } from 'lucide-react';
 
 type DataTab = 'knowledge' | 'formulary' | 'claims' | 'uploads';
 
@@ -103,6 +103,12 @@ export default function DataManagementPage() {
       setDeleting(null);
       setTimeout(() => setMessage(null), 3000);
     }
+  };
+
+  const handleView = (id: string, type: 'formulary' | 'claims') => {
+    // Open CSV download in new window
+    const url = `/api/admin/data?type=${type}&action=view&id=${id}`;
+    window.open(url, '_blank');
   };
 
   const tabs = [
@@ -277,6 +283,13 @@ export default function DataManagementPage() {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                           <button
+                            onClick={() => handleView(dataset.id, 'formulary')}
+                            className="text-primary-600 hover:text-primary-900 mr-3"
+                            title="View/Download dataset as CSV"
+                          >
+                            <Eye className="w-4 h-4 inline" />
+                          </button>
+                          <button
                             onClick={() => handleDelete(dataset.id, 'formulary')}
                             disabled={deleting === dataset.id}
                             className="text-red-600 hover:text-red-900 disabled:opacity-50"
@@ -298,23 +311,20 @@ export default function DataManagementPage() {
               </div>
             )}
 
-            {/* Claims Table */}
+            {/* Claims Datasets Table */}
             {activeTab === 'claims' && (
               <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
                     <tr>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Drug Name
+                        Dataset Label
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Fill Date
+                        Claims
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Days Supply
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Out of Pocket
+                        Uploaded
                       </th>
                       <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Actions
@@ -322,25 +332,30 @@ export default function DataManagementPage() {
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {claims.slice(0, 100).map((claim) => (
-                      <tr key={claim.id} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                          {claim.drugName}
+                    {claims.map((dataset) => (
+                      <tr key={dataset.id} className="hover:bg-gray-50">
+                        <td className="px-6 py-4 text-sm font-medium text-gray-900">
+                          {dataset.datasetLabel}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {new Date(claim.fillDate).toLocaleDateString()}
+                          {dataset.claimCount} claims
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {claim.daysSupply} days
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          ${claim.outOfPocket?.toLocaleString()}
+                          {new Date(dataset.uploadedAt).toLocaleDateString()}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                           <button
-                            onClick={() => handleDelete(claim.id, 'claims')}
-                            disabled={deleting === claim.id}
+                            onClick={() => handleView(dataset.id, 'claims')}
+                            className="text-primary-600 hover:text-primary-900 mr-3"
+                            title="View/Download dataset as CSV"
+                          >
+                            <Eye className="w-4 h-4 inline" />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(dataset.id, 'claims')}
+                            disabled={deleting === dataset.id}
                             className="text-red-600 hover:text-red-900 disabled:opacity-50"
+                            title="Delete entire dataset"
                           >
                             <Trash2 className="w-4 h-4 inline" />
                           </button>
@@ -349,15 +364,10 @@ export default function DataManagementPage() {
                     ))}
                   </tbody>
                 </table>
-                {claims.length > 100 && (
-                  <div className="px-6 py-4 bg-gray-50 text-sm text-gray-500">
-                    Showing first 100 of {claims.length} claims
-                  </div>
-                )}
                 {claims.length === 0 && (
                   <div className="text-center py-12">
                     <FileText className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                    <p className="text-gray-500">No claims data uploaded</p>
+                    <p className="text-gray-500">No claims datasets uploaded</p>
                   </div>
                 )}
               </div>

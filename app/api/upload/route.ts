@@ -220,19 +220,7 @@ async function handleClaimsUpload(csvText: string, fileName: string, datasetLabe
 async function handleEligibilityUpload(csvText: string, fileName: string) {
   const parsed = Papa.parse(csvText, { header: true, skipEmptyLines: true });
 
-  // Get or create default plan
-  let plan = await prisma.insurancePlan.findFirst();
-  if (!plan) {
-    plan = await prisma.insurancePlan.create({
-      data: {
-        planName: 'Default Plan',
-        payerName: 'Default Payer',
-        formularyVersion: new Date().toISOString().split('T')[0],
-      },
-    });
-  }
-
-  const { rows, errors } = parseEligibilityCSV(parsed.data as any[], plan.id);
+  const { rows, errors } = parseEligibilityCSV(parsed.data as any[]);
 
   if (errors.length > 0 && rows.length === 0) {
     await prisma.uploadLog.create({
@@ -252,21 +240,58 @@ async function handleEligibilityUpload(csvText: string, fileName: string) {
     });
   }
 
+  // Extract unique plan names from the CSV
+  const uniquePlanNames = [...new Set(rows.map(row => row.planName))];
+
+  // Find or create insurance plans for each unique plan name
+  const planNameToIdMap: Record<string, string> = {};
+
+  for (const planName of uniquePlanNames) {
+    let plan = await prisma.insurancePlan.findFirst({
+      where: { planName },
+    });
+
+    if (!plan) {
+      // Create new plan if it doesn't exist
+      plan = await prisma.insurancePlan.create({
+        data: {
+          planName,
+          payerName: planName, // Default to same as planName
+          formularyVersion: new Date().toISOString().split('T')[0],
+        },
+      });
+    }
+
+    planNameToIdMap[planName] = plan.id;
+  }
+
   // Upsert patients
   let successCount = 0;
   let failCount = 0;
 
   for (const row of rows) {
     try {
+      const planId = planNameToIdMap[row.planName];
+
+      if (!planId) {
+        throw new Error(`Plan ID not found for plan name: ${row.planName}`);
+      }
+
       await prisma.patient.upsert({
         where: { externalId: row.externalId },
         update: {
           firstName: row.firstName,
           lastName: row.lastName,
           dateOfBirth: row.dateOfBirth,
-          planId: row.planId,
+          planId,
         },
-        create: row,
+        create: {
+          externalId: row.externalId,
+          firstName: row.firstName,
+          lastName: row.lastName,
+          dateOfBirth: row.dateOfBirth,
+          planId,
+        },
       });
       successCount++;
     } catch (error: any) {

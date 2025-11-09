@@ -5,7 +5,7 @@ const eligibilitySchema = z.object({
   firstName: z.string(),
   lastName: z.string(),
   dateOfBirth: z.date(),
-  planId: z.string(),
+  planName: z.string(),
 });
 
 type EligibilityRow = z.infer<typeof eligibilitySchema>;
@@ -15,7 +15,7 @@ const columnMappings = {
   firstName: ['first name', 'firstname', 'first_name', 'fname'],
   lastName: ['last name', 'lastname', 'last_name', 'lname'],
   dateOfBirth: ['date of birth', 'dob', 'date_of_birth', 'birth date', 'birthdate'],
-  planId: ['plan id', 'planid', 'plan_id', 'insurance plan', 'plan name'],
+  planName: ['formulary plan', 'plan name', 'plan', 'insurance plan', 'insurance', 'payer'],
 };
 
 function normalizeColumnName(col: string): string {
@@ -46,7 +46,7 @@ function parseDate(value: any): Date {
   return date;
 }
 
-export function parseEligibilityCSV(data: any[], defaultPlanId?: string): {
+export function parseEligibilityCSV(data: any[]): {
   rows: any[],
   errors: Array<{ row: number, error: string }>
 } {
@@ -57,10 +57,10 @@ export function parseEligibilityCSV(data: any[], defaultPlanId?: string): {
   const headers = Object.keys(data[0]);
   const columnMap = mapColumns(headers);
 
-  const required = ['externalId', 'firstName', 'lastName', 'dateOfBirth'];
+  const required = ['externalId', 'firstName', 'lastName', 'dateOfBirth', 'planName'];
   for (const field of required) {
     if (!columnMap.has(field)) {
-      return { rows: [], errors: [{ row: 0, error: `Required column "${field}" not found` }] };
+      return { rows: [], errors: [{ row: 0, error: `Required column "${field}" not found. Make sure your CSV includes a "Formulary Plan" column.` }] };
     }
   }
 
@@ -71,12 +71,10 @@ export function parseEligibilityCSV(data: any[], defaultPlanId?: string): {
     const row = data[i];
 
     try {
-      const planId = columnMap.has('planId')
-        ? String(row[columnMap.get('planId')!]).trim()
-        : defaultPlanId;
+      const planName = String(row[columnMap.get('planName')!]).trim();
 
-      if (!planId) {
-        throw new Error('Plan ID not found and no default provided');
+      if (!planName) {
+        throw new Error('Formulary Plan column is empty');
       }
 
       const parsed: any = {
@@ -84,7 +82,7 @@ export function parseEligibilityCSV(data: any[], defaultPlanId?: string): {
         firstName: String(row[columnMap.get('firstName')!]).trim(),
         lastName: String(row[columnMap.get('lastName')!]).trim(),
         dateOfBirth: parseDate(row[columnMap.get('dateOfBirth')!]),
-        planId,
+        planName,
       };
 
       parsedRows.push(parsed);
