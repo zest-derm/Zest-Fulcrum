@@ -63,9 +63,25 @@ export default async function RecommendationsPage({ params }: PageProps) {
     });
   };
 
-  // Get safe formulary drugs (filtered for contraindications)
-  const safeFormularyDrugs = filterContraindicated(
+  // Filter drugs by diagnosis indication
+  const filterByDiagnosis = (drugs: any[], diagnosis: string) => {
+    return drugs.filter(drug => {
+      // If no indications specified, exclude it (should have indications by now)
+      if (!drug.approvedIndications || drug.approvedIndications.length === 0) {
+        return false;
+      }
+      // Check if the diagnosis is in the approved indications list
+      return drug.approvedIndications.includes(diagnosis);
+    });
+  };
+
+  // Get safe formulary drugs (filtered for diagnosis AND contraindications)
+  const diagnosisAppropriateDrugs = filterByDiagnosis(
     assessment.patient.plan.formularyDrugs,
+    assessment.diagnosis
+  );
+  const safeFormularyDrugs = filterContraindicated(
+    diagnosisAppropriateDrugs,
     assessment.patient.contraindications
   );
 
@@ -96,7 +112,7 @@ export default async function RecommendationsPage({ params }: PageProps) {
           <span>•</span>
           <span>
             Current: {currentBiologic?.drugName || 'None'} {currentBiologic?.dose} {currentBiologic?.frequency}
-            {assessment.recommendations.length > 0 && assessment.recommendations[0]?.tier && (
+            {currentBiologic && assessment.recommendations.length > 0 && assessment.recommendations[0]?.tier && (
               <> • Tier {assessment.recommendations[0].tier}</>
             )}
           </span>
@@ -322,7 +338,7 @@ export default async function RecommendationsPage({ params }: PageProps) {
           <div className="card">
             <h2 className="mb-4">Complete Formulary Reference</h2>
             <p className="text-sm text-gray-600 mb-4">
-              All appropriate (non-contraindicated) biologic options available on this plan
+              All appropriate biologic options for {assessment.diagnosis.replace(/_/g, ' ').toLowerCase()} (excluding contraindicated drugs)
             </p>
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
