@@ -13,9 +13,16 @@ import {
   DiagnosisType,
 } from '@prisma/client';
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+// Lazy initialization to avoid build-time errors
+let _openai: OpenAI | null = null;
+function getOpenAI(): OpenAI {
+  if (!_openai) {
+    _openai = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY,
+    });
+  }
+  return _openai;
+}
 
 export interface AssessmentInput {
   patientId: string;
@@ -29,6 +36,7 @@ export interface AssessmentInput {
 interface TriageResult {
   canDoseReduce: boolean;
   shouldSwitch: boolean;
+  needsInitiation: boolean;
   quadrant: string;
   reasoning: string;
 }
@@ -49,26 +57,37 @@ interface LLMRecommendation {
 function determineQuadrantAndStatus(
   dlqiScore: number,
   monthsStable: number,
-  currentFormularyDrug: FormularyDrug | null
+  currentFormularyDrug: FormularyDrug | null,
+  hasCurrentBiologic: boolean
 ): { isStable: boolean; isFormularyOptimal: boolean; quadrant: string } {
+  // Special case: Not on biologic yet (initiation pathway)
+  if (!hasCurrentBiologic) {
+    return {
+      isStable: false, // N/A for initiation
+      isFormularyOptimal: false, // N/A for initiation
+      quadrant: 'not_on_biologic'
+    };
+  }
+
   // Stability: DLQI ≤5 and ≥6 months stable
   const isStable = dlqiScore <= 5 && monthsStable >= 6;
 
-  // Formulary optimal: Tier 1-2 AND no PA required
+  // Formulary optimal: ONLY Tier 1 without PA
+  // Tier 2-3 = suboptimal even if "aligned"
   const isFormularyOptimal = currentFormularyDrug
-    ? (currentFormularyDrug.tier <= 2 && !currentFormularyDrug.requiresPA)
+    ? (currentFormularyDrug.tier === 1 && !currentFormularyDrug.requiresPA)
     : false;
 
   // Determine quadrant
   let quadrant: string;
   if (isStable && isFormularyOptimal) {
-    quadrant = 'stable_formulary_aligned';
+    quadrant = 'stable_optimal'; // Tier 1, stable
   } else if (isStable && !isFormularyOptimal) {
-    quadrant = 'stable_non_formulary';
+    quadrant = 'stable_suboptimal'; // Tier 2-3, stable
   } else if (!isStable && isFormularyOptimal) {
-    quadrant = 'unstable_formulary_aligned';
+    quadrant = 'unstable_optimal'; // Tier 1, unstable
   } else {
-    quadrant = 'unstable_non_formulary';
+    quadrant = 'unstable_suboptimal'; // Tier 2-3, unstable
   }
 
   return { isStable, isFormularyOptimal, quadrant };
@@ -79,7 +98,7 @@ function determineQuadrantAndStatus(
  */
 async function triagePatient(
   assessment: AssessmentInput,
-  currentDrug: string,
+  currentDrug: string | null,
   formularyDrug: FormularyDrug | null,
   quadrant: string
 ): Promise<TriageResult> {
@@ -87,7 +106,7 @@ async function triagePatient(
 
 Patient Information:
 - Diagnosis: ${assessment.diagnosis}
-- Current medication: ${currentDrug}
+- Current medication: ${currentDrug || 'None (not on biologic)'}
 - DLQI Score: ${assessment.dlqiScore} (0-30 scale, lower is better)
 - Months stable: ${assessment.monthsStable}
 - Has psoriatic arthritis: ${assessment.hasPsoriaticArthritis ? 'Yes' : 'No'}
@@ -99,24 +118,28 @@ Formulary Status:
 - Classification: ${quadrant.replace(/_/g, ' ').toUpperCase()}
 
 The patient has been classified as: ${quadrant}
-- stable_formulary_aligned: Stable + Tier 1-2 without PA → Consider dose reduction
-- stable_non_formulary: Stable + Tier 3+ or PA required → MUST recommend formulary switch
-- unstable_formulary_aligned: Unstable + Tier 1-2 → Optimize current therapy
-- unstable_non_formulary: Unstable + Tier 3+ → Consider therapeutic switch
+- not_on_biologic: Patient needs biologic initiation → Recommend best Tier 1 option
+- stable_optimal: Stable + Tier 1 without PA → Consider dose reduction OR within-tier optimization
+- stable_suboptimal: Stable + Tier 2-3 → MUST recommend switch to Tier 1
+- unstable_optimal: Unstable + Tier 1 → Consider different Tier 1 option or optimize current
+- unstable_suboptimal: Unstable + Tier 2-3 → Switch to better Tier 1 option
 
 Based on the quadrant "${quadrant}", determine:
-1. Should dose reduction be considered? (Only for stable_formulary_aligned)
-2. Should formulary switch be recommended? (YES for any "non_formulary" quadrant)
-3. Provide clinical reasoning
+1. Should dose reduction be considered? (Only for stable_optimal AND currently Tier 1)
+2. Should formulary switch be recommended? (YES for any "suboptimal" OR "not_on_biologic")
+3. Should recommend biologic initiation? (YES for "not_on_biologic")
+4. Provide clinical reasoning
 
 Return ONLY a JSON object with this exact structure:
 {
   "canDoseReduce": boolean,
   "shouldSwitch": boolean,
+  "needsInitiation": boolean,
   "quadrant": "${quadrant}",
   "reasoning": "string"
 }`;
 
+  const openai = getOpenAI();
   const response = await openai.chat.completions.create({
     model: 'gpt-4o',
     messages: [{ role: 'user', content: prompt }],
@@ -132,27 +155,31 @@ Return ONLY a JSON object with this exact structure:
  * Step 3: Targeted RAG Retrieval based on triage result
  */
 async function retrieveRelevantEvidence(
-  drugName: string,
+  drugName: string | null,
   diagnosis: DiagnosisType,
   triage: TriageResult
 ): Promise<string[]> {
   const queries: string[] = [];
 
-  // Prioritize switch evidence for non-formulary patients
-  if (triage.shouldSwitch) {
+  // Biologic initiation - get efficacy data for condition
+  if (triage.needsInitiation) {
+    queries.push(`${diagnosis} biologic efficacy comparison first-line therapy`);
+    queries.push(`${diagnosis} treatment guidelines biologic selection`);
+    queries.push(`${diagnosis} biologic initiation best outcomes`);
+  }
+  // Switch evidence for suboptimal patients
+  else if (triage.shouldSwitch && drugName) {
     queries.push(`biosimilar switching ${drugName} ${diagnosis} efficacy`);
-    queries.push(`${drugName} to biosimilar switch outcomes ${diagnosis}`);
+    queries.push(`${drugName} to alternative ${diagnosis} outcomes`);
     queries.push(`formulary optimization biologics ${diagnosis} cost effectiveness`);
   }
-
-  // Add dose reduction evidence only for formulary-aligned patients
-  if (triage.canDoseReduce && !triage.shouldSwitch) {
+  // Dose reduction evidence for optimal stable patients
+  else if (triage.canDoseReduce && drugName) {
     queries.push(`${drugName} dose reduction interval extension ${diagnosis} stable patients`);
     queries.push(`${drugName} extended dosing efficacy ${diagnosis}`);
   }
-
-  // If no specific queries, get general evidence
-  if (queries.length === 0) {
+  // General evidence
+  else if (drugName) {
     queries.push(`${drugName} ${diagnosis} treatment guidelines`);
   }
 
@@ -167,11 +194,43 @@ async function retrieveRelevantEvidence(
 }
 
 /**
+ * Filter out contraindicated drugs based on patient contraindications
+ */
+function filterContraindicated(
+  drugs: FormularyDrug[],
+  contraindications: Contraindication[]
+): FormularyDrug[] {
+  if (contraindications.length === 0) return drugs;
+
+  const contraindicationTypes = contraindications.map(c => c.type);
+
+  return drugs.filter(drug => {
+    // TNF inhibitors contraindicated in CHF and MS
+    if (drug.drugClass === 'TNF_INHIBITOR') {
+      if (contraindicationTypes.includes('HEART_FAILURE')) return false;
+      if (contraindicationTypes.includes('MULTIPLE_SCLEROSIS')) return false;
+    }
+
+    // IL-17 inhibitors can worsen IBD
+    if (drug.drugClass === 'IL17_INHIBITOR') {
+      if (contraindicationTypes.includes('INFLAMMATORY_BOWEL_DISEASE')) return false;
+    }
+
+    // All biologics contraindicated in active infection
+    if (contraindicationTypes.includes('ACTIVE_INFECTION')) {
+      return false;
+    }
+
+    return true;
+  });
+}
+
+/**
  * Step 4: LLM Decision-Making with retrieved context
  */
 async function getLLMRecommendationSuggestions(
   assessment: AssessmentInput,
-  currentDrug: string,
+  currentDrug: string | null,
   triage: TriageResult,
   evidence: string[],
   formularyOptions: FormularyDrug[],
@@ -184,7 +243,7 @@ async function getLLMRecommendationSuggestions(
 
   // Show top 10 formulary options, prioritizing lower tiers
   const formularyText = formularyOptions
-    .filter(d => d.drugName.toLowerCase() !== currentDrug.toLowerCase()) // Exclude current drug
+    .filter(d => !currentDrug || d.drugName.toLowerCase() !== currentDrug.toLowerCase()) // Exclude current drug if exists
     .slice(0, 10)
     .map(d => `${d.drugName} (${d.drugClass}, Tier ${d.tier}, PA: ${d.requiresPA ? 'Yes' : 'No'}, Annual Cost: $${d.annualCostWAC})`)
     .join('\n');
@@ -196,7 +255,7 @@ async function getLLMRecommendationSuggestions(
   const prompt = `You are a clinical decision support AI for dermatology biologic optimization.
 
 Patient Information:
-- Current medication: ${currentDrug}
+- Current medication: ${currentDrug || 'None (not on biologic)'}
 - Diagnosis: ${assessment.diagnosis}
 - DLQI Score: ${assessment.dlqiScore}
 - Months stable: ${assessment.monthsStable}
@@ -213,18 +272,46 @@ ${formularyText}
 Clinical Evidence:
 ${evidenceText}
 
-RECOMMENDATION PRIORITY RULES:
-1. If quadrant is "stable_non_formulary" (Tier 3+): PRIORITIZE switching to Tier 1-2 alternatives (biosimilars or preferred drugs)
-2. If quadrant is "stable_formulary_aligned" (Tier 1-2): Consider dose reduction to extend intervals
-3. If quadrant is "unstable_*": Focus on therapeutic optimization, not cost reduction
-4. Always prefer lower tier options when switching (Tier 1 > Tier 2 > Tier 3)
+CONTRAINDICATION RULES (CRITICAL - NEVER recommend contraindicated drugs):
+- TNF inhibitors (adalimumab, infliximab, etanercept): CONTRAINDICATED if HEART_FAILURE or MULTIPLE_SCLEROSIS
+- IL-17 inhibitors (secukinumab, ixekizumab, brodalumab): Can worsen INFLAMMATORY_BOWEL_DISEASE
+- ALL biologics: CONTRAINDICATED if ACTIVE_INFECTION
+- Contraindicated drugs have been PRE-FILTERED from formulary options shown above
 
-Based on this information, generate 1-3 specific cost-saving recommendations ranked by expected cost savings and clinical benefit. For EACH recommendation, provide:
+CLINICAL DECISION-MAKING GUIDELINES:
+1. **not_on_biologic**: Recommend BEST Tier 1 option based on:
+   - Highest efficacy for ${assessment.diagnosis} (cite RAG evidence)
+   - Psoriatic arthritis coverage if needed: ${assessment.hasPsoriaticArthritis ? 'YES - prefer drugs with PsA indication' : 'NO'}
+   - Lowest cost within Tier 1
+
+2. **stable_optimal** (Tier 1, stable):
+   - Consider dose reduction (cite RAG for intervals)
+   - OR compare to other Tier 1 options if significant cost difference exists
+
+3. **stable_suboptimal** (Tier 2-3, stable):
+   - MUST switch to Tier 1
+   - Compare efficacy within same class first (e.g., IL-23 to IL-23)
+   - Consider cross-class if better efficacy (e.g., TNF to IL-17/IL-23)
+
+4. **unstable_optimal** (Tier 1, unstable):
+   - Switch to different Tier 1 with better efficacy
+   - Consider different mechanism of action
+
+5. **unstable_suboptimal** (Tier 2-3, unstable):
+   - Switch to best Tier 1 option for efficacy
+
+PRIORITIZATION:
+- Always prefer Tier 1 > Tier 2 > Tier 3
+- Within same tier: Higher efficacy > Lower cost
+- Use RAG evidence to support efficacy claims
+- For ${assessment.diagnosis}, consider drug class preferences from guidelines
+
+Generate 1-3 specific recommendations ranked by clinical benefit and cost savings. For EACH recommendation:
 1. Type (DOSE_REDUCTION, SWITCH_TO_BIOSIMILAR, SWITCH_TO_PREFERRED, THERAPEUTIC_SWITCH, or OPTIMIZE_CURRENT)
-2. Specific drug name (if switching - MUST specify the exact drug from formulary options)
-3. New dose (if dose reduction, extract from evidence; if switching, use "Per label")
-4. New frequency (if dose reduction, extract interval from evidence; if switching, use "Per label")
-5. Detailed rationale citing clinical evidence and cost benefit
+2. Specific drug name (MUST be from formulary options above)
+3. New dose (extract from RAG evidence if dose reduction; "Per label" if switching)
+4. New frequency (extract specific interval from RAG evidence if dose reduction; "Per label" if switching)
+5. Detailed rationale citing RAG evidence, efficacy data, and cost benefit
 6. Monitoring plan
 
 Return ONLY a JSON object with this exact structure:
@@ -243,6 +330,7 @@ Return ONLY a JSON object with this exact structure:
 }`;
 
   try {
+    const openai = getOpenAI();
     const response = await openai.chat.completions.create({
       model: 'gpt-4o',
       messages: [{ role: 'user', content: prompt }],
@@ -318,6 +406,7 @@ export async function generateLLMRecommendations(
   isFormularyOptimal: boolean;
   quadrant: string;
   recommendations: any[];
+  formularyReference?: any[];
 }> {
   // Fetch patient data
   const patient = await prisma.patient.findUnique({
@@ -342,36 +431,41 @@ export async function generateLLMRecommendations(
   }
 
   const currentBiologic = patient.currentBiologics[0];
-  if (!currentBiologic) {
-    throw new Error('No current biologic found for patient');
-  }
+  const hasCurrentBiologic = !!currentBiologic;
 
-  // Normalize drug name to generic
-  const genericDrugName = await normalizeToGeneric(currentBiologic.drugName);
+  // Normalize drug name to generic (or null if not on biologic)
+  const genericDrugName = currentBiologic
+    ? await normalizeToGeneric(currentBiologic.drugName)
+    : null;
 
   // Find current drug in formulary
-  const currentFormularyDrug = patient.plan.formularyDrugs.find(
-    drug => drug.drugName.toLowerCase() === genericDrugName.toLowerCase()
-  );
+  const currentFormularyDrug = genericDrugName
+    ? patient.plan.formularyDrugs.find(drug => drug.drugName.toLowerCase() === genericDrugName.toLowerCase()) ?? null
+    : null;
 
   // Step 1: Determine quadrant using hard-coded rules (don't trust LLM for this)
   const { isStable, isFormularyOptimal, quadrant } = determineQuadrantAndStatus(
     assessment.dlqiScore,
     assessment.monthsStable,
-    currentFormularyDrug || null
+    currentFormularyDrug || null,
+    hasCurrentBiologic
   );
-  console.log(`Quadrant determination: ${quadrant}, isStable: ${isStable}, isFormularyOptimal: ${isFormularyOptimal}, Tier: ${currentFormularyDrug?.tier}`);
+  console.log(`Quadrant determination: ${quadrant}, hasCurrentBiologic: ${hasCurrentBiologic}, isStable: ${isStable}, isFormularyOptimal: ${isFormularyOptimal}, Tier: ${currentFormularyDrug?.tier}`);
 
   // Step 2: Get LLM clinical reasoning
-  const triage = await triagePatient(assessment, genericDrugName, currentFormularyDrug || null, quadrant);
+  const triage = await triagePatient(assessment, genericDrugName || 'None', currentFormularyDrug || null, quadrant);
   console.log('Triage result:', JSON.stringify(triage));
 
   // Step 3: Targeted RAG Retrieval
   const evidence = await retrieveRelevantEvidence(genericDrugName, assessment.diagnosis, triage);
   console.log(`Retrieved ${evidence.length} evidence chunks`);
 
-  // Sort formulary drugs to prioritize lower tiers
-  const sortedFormularyDrugs = [...patient.plan.formularyDrugs].sort((a, b) => {
+  // Step 4: Filter out contraindicated drugs
+  const safeFormularyDrugs = filterContraindicated(patient.plan.formularyDrugs, patient.contraindications);
+  console.log(`Filtered formulary: ${patient.plan.formularyDrugs.length} total → ${safeFormularyDrugs.length} safe`);
+
+  // Sort safe formulary drugs to prioritize lower tiers
+  const sortedFormularyDrugs = [...safeFormularyDrugs].sort((a, b) => {
     // Sort by tier first (lower is better)
     if (a.tier !== b.tier) return a.tier - b.tier;
     // Then by PA requirement (no PA is better)
@@ -396,10 +490,10 @@ export async function generateLLMRecommendations(
   // Step 5: Add cost calculations and format
   const recommendations = llmRecs.map(rec => {
     const targetDrug = rec.drugName
-      ? patient.plan!.formularyDrugs.find(d => d.drugName.toLowerCase() === rec.drugName?.toLowerCase())
+      ? patient.plan!.formularyDrugs.find(d => d.drugName.toLowerCase() === rec.drugName?.toLowerCase()) ?? null
       : null;
 
-    const costData = calculateCostSavings(rec, currentFormularyDrug || null, targetDrug);
+    const costData = calculateCostSavings(rec, currentFormularyDrug, targetDrug);
 
     return {
       rank: rec.rank,
@@ -418,10 +512,37 @@ export async function generateLLMRecommendations(
     };
   });
 
+  // Create complete formulary reference (all safe drugs sorted by tier)
+  const formularyReference = sortedFormularyDrugs.map(drug => ({
+    drugName: drug.drugName,
+    genericName: drug.genericName || drug.drugName,
+    drugClass: drug.drugClass,
+    tier: drug.tier,
+    requiresPA: drug.requiresPA,
+    standardDosing: getDrugStandardDosing(drug.drugClass),
+    annualCost: drug.annualCostWAC?.toNumber(),
+  }));
+
   return {
     isStable,
     isFormularyOptimal,
     quadrant,
     recommendations: recommendations.slice(0, 3),
+    formularyReference,
   };
+}
+
+/**
+ * Helper: Get standard dosing for drug classes
+ */
+function getDrugStandardDosing(drugClass: string): string {
+  const dosingMap: Record<string, string> = {
+    'TNF_INHIBITOR': 'Per label (varies by drug)',
+    'IL17_INHIBITOR': 'Per label (varies by drug)',
+    'IL23_INHIBITOR': 'Per label (varies by drug)',
+    'IL12_23_INHIBITOR': 'Per label (varies by drug)',
+    'JAK_INHIBITOR': 'Per label (varies by drug)',
+    'OTHER': 'Per label',
+  };
+  return dosingMap[drugClass] || 'Per label';
 }

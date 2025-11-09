@@ -139,7 +139,8 @@ async function handleClaimsUpload(csvText: string, fileName: string) {
   let successCount = 0;
   let failCount = 0;
 
-  for (const [patientId, claims] of Object.entries(claimsByPatient)) {
+  for (const [patientId, claimsData] of Object.entries(claimsByPatient)) {
+    const claims = claimsData as any[];
     try {
       // Find patient by external ID
       const patient = await prisma.patient.findFirst({

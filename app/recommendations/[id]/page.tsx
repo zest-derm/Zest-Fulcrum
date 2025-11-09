@@ -13,7 +13,17 @@ export default async function RecommendationsPage({ params }: PageProps) {
       patient: {
         include: {
           currentBiologics: true,
-          plan: true,
+          plan: {
+            include: {
+              formularyDrugs: {
+                orderBy: [
+                  { tier: 'asc' },
+                  { requiresPA: 'asc' },
+                ],
+              },
+            },
+          },
+          contraindications: true,
         },
       },
       recommendations: {
@@ -26,14 +36,49 @@ export default async function RecommendationsPage({ params }: PageProps) {
     notFound();
   }
 
-  const formatCurrency = (amount: number | null | undefined) => {
+  // Filter out contraindicated drugs from formulary reference
+  const filterContraindicated = (drugs: any[], contraindications: any[]) => {
+    if (contraindications.length === 0) return drugs;
+
+    const contraindicationTypes = contraindications.map(c => c.type);
+
+    return drugs.filter(drug => {
+      // TNF inhibitors contraindicated in CHF and MS
+      if (drug.drugClass === 'TNF_INHIBITOR') {
+        if (contraindicationTypes.includes('HEART_FAILURE')) return false;
+        if (contraindicationTypes.includes('MULTIPLE_SCLEROSIS')) return false;
+      }
+
+      // IL-17 inhibitors can worsen IBD
+      if (drug.drugClass === 'IL17_INHIBITOR') {
+        if (contraindicationTypes.includes('INFLAMMATORY_BOWEL_DISEASE')) return false;
+      }
+
+      // All biologics contraindicated in active infection
+      if (contraindicationTypes.includes('ACTIVE_INFECTION')) {
+        return false;
+      }
+
+      return true;
+    });
+  };
+
+  // Get safe formulary drugs (filtered for contraindications)
+  const safeFormularyDrugs = filterContraindicated(
+    assessment.patient.plan.formularyDrugs,
+    assessment.patient.contraindications
+  );
+
+  const formatCurrency = (amount: any) => {
     if (amount === null || amount === undefined) return 'N/A';
+    // Handle Prisma Decimal type
+    const numAmount = typeof amount === 'object' && 'toNumber' in amount ? amount.toNumber() : amount;
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency: 'USD',
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
-    }).format(amount);
+    }).format(numAmount);
   };
 
   const currentBiologic = assessment.patient.currentBiologics[0];
@@ -103,7 +148,7 @@ export default async function RecommendationsPage({ params }: PageProps) {
       <div className="space-y-6">
         {assessment.recommendations.map((rec, idx) => {
           const isContraindicated = rec.contraindicated;
-          const hasSavings = rec.annualSavings && rec.annualSavings > 0;
+          const hasSavings = rec.annualSavings && rec.annualSavings.toNumber() > 0;
 
           return (
             <div
@@ -197,7 +242,14 @@ export default async function RecommendationsPage({ params }: PageProps) {
                         <div className="flex justify-between pt-2 border-t border-green-300">
                           <span className="text-green-800 font-semibold">Savings:</span>
                           <span className="text-green-800 font-bold">
-                            {formatCurrency((rec.currentMonthlyOOP || 0) - (rec.recommendedMonthlyOOP || 0))}/mo
+                            {formatCurrency(
+                              (typeof rec.currentMonthlyOOP === 'object' && 'toNumber' in rec.currentMonthlyOOP
+                                ? rec.currentMonthlyOOP.toNumber()
+                                : rec.currentMonthlyOOP || 0) -
+                              (typeof rec.recommendedMonthlyOOP === 'object' && 'toNumber' in rec.recommendedMonthlyOOP
+                                ? rec.recommendedMonthlyOOP.toNumber()
+                                : rec.recommendedMonthlyOOP || 0)
+                            )}/mo
                           </span>
                         </div>
                       )}
@@ -261,6 +313,74 @@ export default async function RecommendationsPage({ params }: PageProps) {
           <p className="text-sm text-gray-500">
             Unable to generate recommendations based on current data.
           </p>
+        </div>
+      )}
+
+      {/* Complete Formulary Reference */}
+      {safeFormularyDrugs.length > 0 && (
+        <div className="mt-8">
+          <div className="card">
+            <h2 className="mb-4">Complete Formulary Reference</h2>
+            <p className="text-sm text-gray-600 mb-4">
+              All appropriate (non-contraindicated) biologic options available on this plan
+            </p>
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Brand Name
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Generic Name
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Drug Class
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Tier
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      PA Required
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Annual Cost (WAC)
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {safeFormularyDrugs.map((drug, idx) => (
+                    <tr key={idx} className={drug.tier === 1 ? 'bg-green-50' : drug.tier === 2 ? 'bg-yellow-50' : ''}>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
+                        {drug.drugName}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">
+                        {drug.genericName || drug.drugName}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">
+                        {drug.drugClass.replace(/_/g, ' ')}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm">
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                          drug.tier === 1 ? 'bg-green-100 text-green-800' :
+                          drug.tier === 2 ? 'bg-yellow-100 text-yellow-800' :
+                          'bg-red-100 text-red-800'
+                        }`}>
+                          Tier {drug.tier}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">
+                        {drug.requiresPA ? 'Yes' : 'No'}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">
+                        {formatCurrency(drug.annualCostWAC?.toNumber())}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       )}
     </div>
