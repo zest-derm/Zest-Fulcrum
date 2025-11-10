@@ -559,10 +559,16 @@ export async function generateLLMRecommendations(
       drugSpecificEvidence = evidenceResults.flat().map(e => `${e.title}: ${e.content.substring(0, 500)}...`);
     }
 
+    // For dose reduction, display the BRAND name (Amjevita) not generic (adalimumab)
+    // since Amjevita, Hyrimoz, and Humira are all adalimumab but different products
+    const displayDrugName = rec.type === 'DOSE_REDUCTION' && currentBiologic
+      ? currentBiologic.drugName  // Brand name: "Amjevita"
+      : rec.drugName || genericDrugName;  // For switches, use target drug
+
     return {
       rank: rec.rank,
       type: rec.type,
-      drugName: rec.drugName || genericDrugName,
+      drugName: displayDrugName,
       newDose: rec.newDose,
       newFrequency: rec.newFrequency,
       ...costData,
