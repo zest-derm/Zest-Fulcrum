@@ -296,15 +296,40 @@ export default async function RecommendationsPage({ params }: PageProps) {
                   <h4 className="font-semibold text-sm mb-2">Supporting Evidence</h4>
                   <div className="space-y-3">
                     {rec.evidenceSources.map((source, i) => {
-                      // Parse "title: content..." format
-                      const colonIndex = source.indexOf(':');
-                      const title = colonIndex > 0 ? source.substring(0, colonIndex).trim() : source;
-                      const excerpt = colonIndex > 0 ? source.substring(colonIndex + 1).trim() : '';
+                      // Parse "Title (relevance: 85%): Content..." format
+                      const relevanceMatch = source.match(/^(.+?)\s*\(relevance:\s*(\d+)%\):\s*(.+)$/);
+
+                      let title: string;
+                      let relevance: number | null = null;
+                      let excerpt: string;
+
+                      if (relevanceMatch) {
+                        // New format with relevance score
+                        title = relevanceMatch[1].trim();
+                        relevance = parseInt(relevanceMatch[2]);
+                        excerpt = relevanceMatch[3].trim();
+                      } else {
+                        // Legacy format "title: content..."
+                        const colonIndex = source.indexOf(':');
+                        title = colonIndex > 0 ? source.substring(0, colonIndex).trim() : source;
+                        excerpt = colonIndex > 0 ? source.substring(colonIndex + 1).trim() : '';
+                      }
 
                       return (
                         <div key={i} className="p-3 bg-gray-50 rounded border border-gray-200">
-                          <div className="font-medium text-sm text-gray-900 mb-1">
-                            📄 {title}
+                          <div className="flex items-center justify-between mb-1">
+                            <div className="font-medium text-sm text-gray-900">
+                              📄 {title}
+                            </div>
+                            {relevance !== null && (
+                              <span className={`text-xs font-medium px-2 py-0.5 rounded ${
+                                relevance >= 80 ? 'bg-green-100 text-green-800' :
+                                relevance >= 70 ? 'bg-blue-100 text-blue-800' :
+                                'bg-gray-100 text-gray-800'
+                              }`}>
+                                {relevance}% relevant
+                              </span>
+                            )}
                           </div>
                           {excerpt && (
                             <p className="text-xs text-gray-600 italic">

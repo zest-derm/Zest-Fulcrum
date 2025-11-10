@@ -207,9 +207,12 @@ export async function generateRecommendations(
   const isFormularyOptimal = determineFormularyStatus(currentFormularyDrug || null);
   const quadrant = getQuadrant(isStable, isFormularyOptimal);
 
-  // Search knowledge base for relevant evidence
+  // Search knowledge base for relevant evidence using dynamic similarity threshold
   const knowledgeQuery = `${assessment.diagnosis} ${currentBiologic.drugName} ${quadrant}`;
-  const evidence = await searchKnowledge(knowledgeQuery, 3);
+  const evidence = await searchKnowledge(knowledgeQuery, {
+    minSimilarity: 0.65,
+    maxResults: 10
+  });
 
   // Generate recommendations based on quadrant
   const recommendations: RecommendationOutput[] = [];

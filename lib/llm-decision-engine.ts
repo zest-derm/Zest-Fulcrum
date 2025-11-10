@@ -183,9 +183,12 @@ async function retrieveRelevantEvidence(
     queries.push(`${drugName} ${diagnosis} treatment guidelines`);
   }
 
-  // Retrieve evidence for each query
+  // Retrieve evidence for each query using dynamic similarity threshold
   const evidenceResults = await Promise.all(
-    queries.map(query => searchKnowledge(query, 3))
+    queries.map(query => searchKnowledge(query, {
+      minSimilarity: 0.65,  // Only include moderately relevant chunks
+      maxResults: 10         // Cap to avoid context overflow
+    }))
   );
 
   // Flatten and extract content
@@ -544,6 +547,7 @@ export async function generateLLMRecommendations(
     const costData = calculateCostSavings(rec, currentFormularyDrug, targetDrug);
 
     // Retrieve drug-specific evidence ONLY for dose reduction recommendations
+    // Uses dynamic similarity-based retrieval to ensure all relevant evidence is included
     let drugSpecificEvidence: string[] = [];
     if (rec.type === 'DOSE_REDUCTION' && rec.drugName) {
       const queries = [
@@ -552,11 +556,19 @@ export async function generateLLMRecommendations(
         `${rec.drugName} treatment optimization ${assessment.diagnosis} guidelines`
       ];
 
+      // Use dynamic similarity threshold (0.65 = moderately relevant)
+      // This retrieves 0-10 chunks per query based on actual relevance
       const evidenceResults = await Promise.all(
-        queries.map(query => searchKnowledge(query, 2))
+        queries.map(query => searchKnowledge(query, {
+          minSimilarity: 0.65,  // Only include chunks with >65% similarity
+          maxResults: 10         // Cap at 10 to avoid overwhelming context
+        }))
       );
 
-      drugSpecificEvidence = evidenceResults.flat().map(e => `${e.title}: ${e.content.substring(0, 500)}...`);
+      // Flatten and format evidence with similarity scores for transparency
+      drugSpecificEvidence = evidenceResults
+        .flat()
+        .map(e => `${e.title} (relevance: ${(e.similarity * 100).toFixed(0)}%): ${e.content.substring(0, 500)}...`);
     }
 
     // For dose reduction, display the BRAND name (Amjevita) not generic (adalimumab)
