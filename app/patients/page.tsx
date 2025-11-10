@@ -92,7 +92,7 @@ export default async function PatientsPage() {
                       <div className="flex items-center justify-end gap-2">
                         <Link
                           href={`/patients/${patient.id}/edit`}
-                          className="text-gray-600 hover:text-gray-900"
+                          className="text-gray-600 hover:text-gray-900 transition-all duration-150 hover:scale-110 active:scale-95 inline-block"
                           title="Edit patient"
                         >
                           <Edit className="w-4 h-4" />
@@ -100,10 +100,10 @@ export default async function PatientsPage() {
                         <DeletePatientButton patientId={patient.id} patientName={`${patient.firstName} ${patient.lastName}`} />
                         <Link
                           href={`/assess?patientId=${patient.id}`}
-                          className="text-primary-600 hover:text-primary-700 inline-flex items-center text-sm font-medium ml-2"
+                          className="text-primary-600 hover:text-primary-700 inline-flex items-center text-sm font-medium ml-2 transition-all duration-150 active:scale-95 group"
                         >
                           Assess
-                          <ChevronRight className="w-4 h-4 ml-1" />
+                          <ChevronRight className="w-4 h-4 ml-1 transition-transform duration-150 group-hover:translate-x-1" />
                         </Link>
                       </div>
                     </td>

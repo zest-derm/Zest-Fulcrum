@@ -20,17 +20,17 @@ export default function RootLayout({
             <nav className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
               <div className="flex justify-between h-16 items-center">
                 <div className="flex items-center space-x-8">
-                  <Link href="/" className="text-2xl font-bold text-primary-600">
+                  <Link href="/" className="text-2xl font-bold text-primary-600 transition-all duration-150 active:scale-95 inline-block">
                     Zest Fulcrum
                   </Link>
                   <div className="hidden md:flex space-x-6">
-                    <Link href="/patients" className="text-gray-700 hover:text-primary-600 transition-colors duration-150">
+                    <Link href="/patients" className="text-gray-700 hover:text-primary-600 transition-all duration-150 active:scale-95 inline-block">
                       Patients
                     </Link>
-                    <Link href="/assess" className="text-gray-700 hover:text-primary-600 transition-colors duration-150">
+                    <Link href="/assess" className="text-gray-700 hover:text-primary-600 transition-all duration-150 active:scale-95 inline-block">
                       New Assessment
                     </Link>
-                    <Link href="/admin" className="text-gray-700 hover:text-primary-600 transition-colors duration-150">
+                    <Link href="/admin" className="text-gray-700 hover:text-primary-600 transition-all duration-150 active:scale-95 inline-block">
                       Data Upload
                     </Link>
                   </div>
