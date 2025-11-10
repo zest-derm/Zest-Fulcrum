@@ -294,11 +294,27 @@ export default async function RecommendationsPage({ params }: PageProps) {
               {rec.evidenceSources && rec.evidenceSources.length > 0 && (
                 <div className="mb-4">
                   <h4 className="font-semibold text-sm mb-2">Supporting Evidence</h4>
-                  <ul className="list-disc list-inside text-sm text-gray-700 space-y-1">
-                    {rec.evidenceSources.map((source, i) => (
-                      <li key={i}>{source}</li>
-                    ))}
-                  </ul>
+                  <div className="space-y-3">
+                    {rec.evidenceSources.map((source, i) => {
+                      // Parse "title: content..." format
+                      const colonIndex = source.indexOf(':');
+                      const title = colonIndex > 0 ? source.substring(0, colonIndex).trim() : source;
+                      const excerpt = colonIndex > 0 ? source.substring(colonIndex + 1).trim() : '';
+
+                      return (
+                        <div key={i} className="p-3 bg-gray-50 rounded border border-gray-200">
+                          <div className="font-medium text-sm text-gray-900 mb-1">
+                            📄 {title}
+                          </div>
+                          {excerpt && (
+                            <p className="text-xs text-gray-600 italic">
+                              "{excerpt}"
+                            </p>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
 

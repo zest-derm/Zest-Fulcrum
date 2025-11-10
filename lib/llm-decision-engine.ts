@@ -532,6 +532,11 @@ export async function generateLLMRecommendations(
   );
 
   // Step 5: Add cost calculations and format
+  // TODO: Current RAG limitation - all recommendations use the SAME evidence (retrieved once for current drug)
+  // Proper implementation should retrieve drug-specific evidence for each recommendation:
+  //   - Cosentyx rec → search "Cosentyx psoriasis efficacy"
+  //   - Skyrizi rec → search "Skyrizi psoriasis efficacy"
+  //   - etc.
   const recommendations = llmRecs.map(rec => {
     const targetDrug = rec.drugName
       ? patient.plan!.formularyDrugs.find(d => d.drugName.toLowerCase() === rec.drugName?.toLowerCase()) ?? null
@@ -547,7 +552,7 @@ export async function generateLLMRecommendations(
       newFrequency: rec.newFrequency,
       ...costData,
       rationale: rec.rationale,
-      evidenceSources: evidence.slice(0, 3).map(e => e.split(':')[0]), // Extract titles
+      evidenceSources: evidence.slice(0, 3), // Keep full evidence with content excerpts
       monitoringPlan: rec.monitoringPlan,
       tier: targetDrug?.tier || currentFormularyDrug?.tier,
       requiresPA: targetDrug?.requiresPA || currentFormularyDrug?.requiresPA,
