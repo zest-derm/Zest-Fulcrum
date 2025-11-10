@@ -585,7 +585,7 @@ export async function generateLLMRecommendations(
       newFrequency: rec.newFrequency,
       ...costData,
       rationale: rec.rationale,
-      evidenceSources: drugSpecificEvidence.length > 0 ? drugSpecificEvidence.slice(0, 3) : [], // Only show for dose reduction
+      evidenceSources: drugSpecificEvidence, // Show all dynamically retrieved evidence
       monitoringPlan: rec.monitoringPlan,
       tier: targetDrug?.tier || currentFormularyDrug?.tier,
       requiresPA: targetDrug?.requiresPA || currentFormularyDrug?.requiresPA,
