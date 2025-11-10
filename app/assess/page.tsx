@@ -17,6 +17,7 @@ export default function AssessmentPage() {
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     patientId: '',
+    notOnBiologic: false,
     currentBiologic: '',
     dose: '',
     frequency: '',
@@ -40,16 +41,18 @@ export default function AssessmentPage() {
     setLoading(true);
 
     try {
-      // First, create/update current biologic
-      await fetch('/api/patients/' + formData.patientId + '/biologic', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          drugName: formData.currentBiologic,
-          dose: formData.dose,
-          frequency: formData.frequency,
-        }),
-      });
+      // First, create/update current biologic (skip if not on biologic)
+      if (!formData.notOnBiologic && formData.currentBiologic) {
+        await fetch('/api/patients/' + formData.patientId + '/biologic', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            drugName: formData.currentBiologic,
+            dose: formData.dose,
+            frequency: formData.frequency,
+          }),
+        });
+      }
 
       // Create/update contraindications
       await fetch('/api/patients/' + formData.patientId + '/contraindications', {
@@ -126,38 +129,52 @@ export default function AssessmentPage() {
         </div>
 
         {/* Current Biologic */}
-        <div className="grid md:grid-cols-3 gap-4">
-          <div className="md:col-span-1">
-            <label className="label">Current Biologic *</label>
+        <div>
+          <label className="flex items-center mb-3">
             <input
-              type="text"
-              className="input w-full"
-              value={formData.currentBiologic}
-              onChange={(e) => setFormData({ ...formData, currentBiologic: e.target.value })}
-              placeholder="e.g., Humira"
-              required
+              type="checkbox"
+              checked={formData.notOnBiologic}
+              onChange={(e) => setFormData({ ...formData, notOnBiologic: e.target.checked, currentBiologic: '', dose: '', frequency: '' })}
+              className="mr-2"
             />
-          </div>
-          <div>
-            <label className="label">Dose</label>
-            <input
-              type="text"
-              className="input w-full"
-              value={formData.dose}
-              onChange={(e) => setFormData({ ...formData, dose: e.target.value })}
-              placeholder="e.g., 40mg"
-            />
-          </div>
-          <div>
-            <label className="label">Frequency</label>
-            <input
-              type="text"
-              className="input w-full"
-              value={formData.frequency}
-              onChange={(e) => setFormData({ ...formData, frequency: e.target.value })}
-              placeholder="e.g., Q2W"
-            />
-          </div>
+            Patient not currently on biologic
+          </label>
+
+          {!formData.notOnBiologic && (
+            <div className="grid md:grid-cols-3 gap-4">
+              <div className="md:col-span-1">
+                <label className="label">Current Biologic *</label>
+                <input
+                  type="text"
+                  className="input w-full"
+                  value={formData.currentBiologic}
+                  onChange={(e) => setFormData({ ...formData, currentBiologic: e.target.value })}
+                  placeholder="e.g., Humira"
+                  required={!formData.notOnBiologic}
+                />
+              </div>
+              <div>
+                <label className="label">Dose</label>
+                <input
+                  type="text"
+                  className="input w-full"
+                  value={formData.dose}
+                  onChange={(e) => setFormData({ ...formData, dose: e.target.value })}
+                  placeholder="e.g., 40mg"
+                />
+              </div>
+              <div>
+                <label className="label">Frequency</label>
+                <input
+                  type="text"
+                  className="input w-full"
+                  value={formData.frequency}
+                  onChange={(e) => setFormData({ ...formData, frequency: e.target.value })}
+                  placeholder="e.g., Q2W"
+                />
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Indication */}
@@ -284,10 +301,22 @@ export default function AssessmentPage() {
           <button
             type="submit"
             disabled={loading}
-            className="btn btn-primary flex items-center"
+            className="btn btn-primary flex items-center justify-center"
           >
-            {loading ? 'Generating...' : 'Generate Recommendations'}
-            <ChevronRight className="w-4 h-4 ml-2" />
+            {loading ? (
+              <>
+                <svg className="spinner w-5 h-5 mr-2" viewBox="0 0 24 24" fill="none">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                </svg>
+                Generating Recommendations...
+              </>
+            ) : (
+              <>
+                Generate Recommendations
+                <ChevronRight className="w-4 h-4 ml-2" />
+              </>
+            )}
           </button>
         </div>
       </form>

@@ -3,48 +3,55 @@ import { ArrowRight, Upload, FileText, TrendingDown } from "lucide-react";
 
 export default function HomePage() {
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-      <div className="text-center mb-12">
-        <h1 className="text-4xl font-bold text-gray-900 mb-4">
-          Biologic Decision Support System
-        </h1>
-        <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-          Reduce biologic costs while maintaining clinical outcomes through intelligent,
-          evidence-based therapy optimization
-        </p>
+    <div>
+      {/* Hero Section with Orange Gradient */}
+      <div className="bg-gradient-to-r from-primary-600 to-primary-500 text-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+          <div className="text-center">
+            <h1 className="text-4xl font-bold mb-4">
+              Biologic Decision Support System
+            </h1>
+            <p className="text-xl text-primary-50 max-w-3xl mx-auto">
+              Reduce biologic costs while maintaining clinical outcomes through intelligent,
+              evidence-based therapy optimization
+            </p>
+          </div>
+        </div>
       </div>
 
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+
       <div className="grid md:grid-cols-3 gap-8 mb-12">
-        <div className="card">
-          <Upload className="w-12 h-12 text-primary-600 mb-4" />
+        <div className="card card-hover transform transition-all duration-200 hover:-translate-y-1">
+          <Upload className="w-12 h-12 text-primary-600 mb-4 transition-transform duration-200 group-hover:scale-110" />
           <h3 className="mb-2">Upload Data</h3>
           <p className="text-gray-600 mb-4">
             Upload formulary sheets, claims data, and clinical evidence through simple CSV/PDF uploads
           </p>
-          <Link href="/admin" className="text-primary-600 hover:text-primary-700 font-medium flex items-center">
-            Go to Admin <ArrowRight className="w-4 h-4 ml-1" />
+          <Link href="/admin" className="text-primary-600 hover:text-primary-700 font-medium flex items-center transition-all duration-150 group">
+            Go to Admin <ArrowRight className="w-4 h-4 ml-1 transition-transform duration-150 group-hover:translate-x-1" />
           </Link>
         </div>
 
-        <div className="card">
-          <FileText className="w-12 h-12 text-primary-600 mb-4" />
+        <div className="card card-hover transform transition-all duration-200 hover:-translate-y-1">
+          <FileText className="w-12 h-12 text-primary-600 mb-4 transition-transform duration-200 group-hover:scale-110" />
           <h3 className="mb-2">Quick Assessment</h3>
           <p className="text-gray-600 mb-4">
             Simplified patient assessment form with automatic data population and quadrant classification
           </p>
-          <Link href="/assess" className="text-primary-600 hover:text-primary-700 font-medium flex items-center">
-            Start Assessment <ArrowRight className="w-4 h-4 ml-1" />
+          <Link href="/assess" className="text-primary-600 hover:text-primary-700 font-medium flex items-center transition-all duration-150 group">
+            Start Assessment <ArrowRight className="w-4 h-4 ml-1 transition-transform duration-150 group-hover:translate-x-1" />
           </Link>
         </div>
 
-        <div className="card">
-          <TrendingDown className="w-12 h-12 text-primary-600 mb-4" />
+        <div className="card card-hover transform transition-all duration-200 hover:-translate-y-1">
+          <TrendingDown className="w-12 h-12 text-primary-600 mb-4 transition-transform duration-200 group-hover:scale-110" />
           <h3 className="mb-2">Cost Savings</h3>
           <p className="text-gray-600 mb-4">
             Get 1-3 evidence-based recommendations for dose reduction or formulary-preferred switches
           </p>
-          <Link href="/patients" className="text-primary-600 hover:text-primary-700 font-medium flex items-center">
-            View Patients <ArrowRight className="w-4 h-4 ml-1" />
+          <Link href="/patients" className="text-primary-600 hover:text-primary-700 font-medium flex items-center transition-all duration-150 group">
+            View Patients <ArrowRight className="w-4 h-4 ml-1 transition-transform duration-150 group-hover:translate-x-1" />
           </Link>
         </div>
       </div>
@@ -86,6 +93,7 @@ export default function HomePage() {
             </div>
           </li>
         </ol>
+      </div>
       </div>
     </div>
   );

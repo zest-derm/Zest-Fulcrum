@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/db';
 import Link from 'next/link';
-import { ChevronRight, User } from 'lucide-react';
+import { ChevronRight, User, Edit, Trash2 } from 'lucide-react';
+import DeletePatientButton from './DeletePatientButton';
 
 export default async function PatientsPage() {
   const patients = await prisma.patient.findMany({
@@ -87,14 +88,24 @@ export default async function PatientsPage() {
                         <span className="text-gray-400">No assessments</span>
                       )}
                     </td>
-                    <td className="py-3 px-4 text-right">
-                      <Link
-                        href={`/assess?patientId=${patient.id}`}
-                        className="text-primary-600 hover:text-primary-700 inline-flex items-center text-sm font-medium"
-                      >
-                        New Assessment
-                        <ChevronRight className="w-4 h-4 ml-1" />
-                      </Link>
+                    <td className="py-3 px-4">
+                      <div className="flex items-center justify-end gap-2">
+                        <Link
+                          href={`/patients/${patient.id}/edit`}
+                          className="text-gray-600 hover:text-gray-900 transition-all duration-150 hover:scale-110 active:scale-95 inline-block"
+                          title="Edit patient"
+                        >
+                          <Edit className="w-4 h-4" />
+                        </Link>
+                        <DeletePatientButton patientId={patient.id} patientName={`${patient.firstName} ${patient.lastName}`} />
+                        <Link
+                          href={`/assess?patientId=${patient.id}`}
+                          className="text-primary-600 hover:text-primary-700 inline-flex items-center text-sm font-medium ml-2 transition-all duration-150 active:scale-95 group"
+                        >
+                          Assess
+                          <ChevronRight className="w-4 h-4 ml-1 transition-transform duration-150 group-hover:translate-x-1" />
+                        </Link>
+                      </div>
                     </td>
                   </tr>
                 );

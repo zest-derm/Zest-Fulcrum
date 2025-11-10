@@ -1,15 +1,23 @@
 import OpenAI from 'openai';
 import { prisma } from '@/lib/db';
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+// Lazy initialization to avoid build-time errors
+let _openai: OpenAI | null = null;
+function getOpenAI(): OpenAI {
+  if (!_openai) {
+    _openai = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY,
+    });
+  }
+  return _openai;
+}
 
 /**
  * Generate embedding for a text string using OpenAI
  */
 export async function generateEmbedding(text: string): Promise<number[]> {
   try {
+    const openai = getOpenAI();
     const response = await openai.embeddings.create({
       model: 'text-embedding-3-small',
       input: text.slice(0, 8000), // Limit to 8000 chars to stay within token limits
@@ -92,11 +100,22 @@ export async function embedKnowledgeDocument(
 
 /**
  * Search knowledge base using vector similarity
+ *
+ * @param query - The search query text
+ * @param options - Search configuration
+ * @param options.limit - Fixed number of chunks to retrieve (default: 5)
+ * @param options.minSimilarity - Minimum similarity threshold (0-1). If set, retrieves dynamically based on relevance
+ * @param options.maxResults - Maximum results when using minSimilarity (default: 10)
+ * @param options.category - Optional category filter
  */
 export async function searchKnowledge(
   query: string,
-  limit: number = 5,
-  category?: string
+  options?: {
+    limit?: number;
+    minSimilarity?: number;
+    maxResults?: number;
+    category?: string;
+  }
 ): Promise<Array<{
   id: string;
   title: string;
@@ -104,11 +123,21 @@ export async function searchKnowledge(
   category: string;
   similarity: number;
 }>> {
+  const {
+    limit = 5,
+    minSimilarity,
+    maxResults = 10,
+    category
+  } = options || {};
+
   const queryEmbedding = await generateEmbedding(query);
   const embeddingStr = `[${queryEmbedding.join(',')}]`;
 
   // Use pgvector cosine distance for similarity search
   const categoryFilter = category ? `AND category = '${category}'` : '';
+
+  // If using dynamic similarity-based retrieval, fetch more candidates
+  const fetchLimit = minSimilarity !== undefined ? maxResults : limit;
 
   const results = await prisma.$queryRawUnsafe<any[]>(`
     SELECT
@@ -123,14 +152,39 @@ export async function searchKnowledge(
     WHERE embedding IS NOT NULL
     ${categoryFilter}
     ORDER BY embedding <=> '${embeddingStr}'::vector
-    LIMIT ${limit}
+    LIMIT ${fetchLimit}
   `);
 
-  return results.map(r => ({
+  let filteredResults = results.map(r => ({
     id: r.id,
     title: r.title,
     content: r.content,
     category: r.category,
     similarity: Number(r.similarity),
   }));
+
+  // Apply similarity threshold if specified
+  if (minSimilarity !== undefined) {
+    filteredResults = filteredResults.filter(r => r.similarity >= minSimilarity);
+  }
+
+  return filteredResults;
+}
+
+/**
+ * Legacy function for backward compatibility - uses fixed limit
+ * @deprecated Use searchKnowledge with options object instead
+ */
+export async function searchKnowledgeLegacy(
+  query: string,
+  limit: number = 5,
+  category?: string
+): Promise<Array<{
+  id: string;
+  title: string;
+  content: string;
+  category: string;
+  similarity: number;
+}>> {
+  return searchKnowledge(query, { limit, category });
 }

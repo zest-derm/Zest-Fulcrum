@@ -4,12 +4,16 @@ import { prisma } from '@/lib/db';
 import { parseFormularyCSV } from '@/lib/parsers/formulary-parser';
 import { parseClaimsCSV } from '@/lib/parsers/claims-parser';
 import { parseEligibilityCSV } from '@/lib/parsers/eligibility-parser';
+import { chunkTextByParagraph } from '@/lib/text-chunker';
+import { generateEmbedding } from '@/lib/rag/embeddings';
 
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
     const file = formData.get('file') as File;
     const type = formData.get('type') as string;
+    const datasetLabel = formData.get('datasetLabel') as string | null;
+    const planId = formData.get('planId') as string | null;
 
     if (!file) {
       return NextResponse.json(
@@ -22,9 +26,9 @@ export async function POST(request: NextRequest) {
 
     // Handle different upload types
     if (type === 'formulary') {
-      return await handleFormularyUpload(text, file.name);
+      return await handleFormularyUpload(text, file.name, datasetLabel, planId);
     } else if (type === 'claims') {
-      return await handleClaimsUpload(text, file.name);
+      return await handleClaimsUpload(text, file.name, datasetLabel);
     } else if (type === 'eligibility') {
       return await handleEligibilityUpload(text, file.name);
     } else if (type === 'knowledge') {
@@ -44,19 +48,31 @@ export async function POST(request: NextRequest) {
   }
 }
 
-async function handleFormularyUpload(csvText: string, fileName: string) {
+async function handleFormularyUpload(csvText: string, fileName: string, datasetLabel: string | null, planId: string | null) {
   const parsed = Papa.parse(csvText, { header: true, skipEmptyLines: true });
 
-  // Get or create default plan
-  let plan = await prisma.insurancePlan.findFirst();
-  if (!plan) {
-    plan = await prisma.insurancePlan.create({
-      data: {
-        planName: 'Default Plan',
-        payerName: 'Default Payer',
-        formularyVersion: new Date().toISOString().split('T')[0],
-      },
-    });
+  // Get or create plan
+  let plan;
+  if (planId) {
+    plan = await prisma.insurancePlan.findUnique({ where: { id: planId } });
+    if (!plan) {
+      return NextResponse.json({
+        success: false,
+        message: `Insurance plan with ID ${planId} not found`,
+      }, { status: 400 });
+    }
+  } else {
+    // Get or create default plan
+    plan = await prisma.insurancePlan.findFirst();
+    if (!plan) {
+      plan = await prisma.insurancePlan.create({
+        data: {
+          planName: 'Default Plan',
+          payerName: 'Default Payer',
+          formularyVersion: new Date().toISOString().split('T')[0],
+        },
+      });
+    }
   }
 
   const { rows, errors } = parseFormularyCSV(parsed.data as any[], plan.id);
@@ -66,6 +82,8 @@ async function handleFormularyUpload(csvText: string, fileName: string) {
       data: {
         uploadType: 'FORMULARY',
         fileName,
+        datasetLabel,
+        planId: plan.id,
         rowsProcessed: 0,
         rowsFailed: errors.length,
         errors: errors,
@@ -79,22 +97,23 @@ async function handleFormularyUpload(csvText: string, fileName: string) {
     });
   }
 
-  // Delete existing formulary drugs for this plan and insert new ones
-  await prisma.formularyDrug.deleteMany({ where: { planId: plan.id } });
-
-  await prisma.formularyDrug.createMany({
-    data: rows,
-    skipDuplicates: true,
-  });
-
-  await prisma.uploadLog.create({
+  // Create upload log first to get its ID
+  const uploadLog = await prisma.uploadLog.create({
     data: {
       uploadType: 'FORMULARY',
       fileName,
+      datasetLabel,
+      planId: plan.id,
       rowsProcessed: rows.length,
       rowsFailed: errors.length,
       errors: errors.length > 0 ? errors : undefined,
     },
+  });
+
+  // Add uploadLogId to all rows and insert (do NOT delete existing data)
+  await prisma.formularyDrug.createMany({
+    data: rows.map(row => ({ ...row, uploadLogId: uploadLog.id })),
+    skipDuplicates: true,
   });
 
   return NextResponse.json({
@@ -105,7 +124,7 @@ async function handleFormularyUpload(csvText: string, fileName: string) {
   });
 }
 
-async function handleClaimsUpload(csvText: string, fileName: string) {
+async function handleClaimsUpload(csvText: string, fileName: string, datasetLabel: string | null) {
   const parsed = Papa.parse(csvText, { header: true, skipEmptyLines: true });
   const { rows, errors } = parseClaimsCSV(parsed.data as any[]);
 
@@ -114,6 +133,7 @@ async function handleClaimsUpload(csvText: string, fileName: string) {
       data: {
         uploadType: 'CLAIMS',
         fileName,
+        datasetLabel,
         rowsProcessed: 0,
         rowsFailed: errors.length,
         errors: errors,
@@ -126,6 +146,17 @@ async function handleClaimsUpload(csvText: string, fileName: string) {
       errors,
     });
   }
+
+  // Create upload log first to get its ID
+  const uploadLog = await prisma.uploadLog.create({
+    data: {
+      uploadType: 'CLAIMS',
+      fileName,
+      datasetLabel,
+      rowsProcessed: 0, // Will update after processing
+      rowsFailed: 0,
+    },
+  });
 
   // Group by patient and insert claims
   const claimsByPatient = rows.reduce((acc, claim) => {
@@ -137,7 +168,8 @@ async function handleClaimsUpload(csvText: string, fileName: string) {
   let successCount = 0;
   let failCount = 0;
 
-  for (const [patientId, claims] of Object.entries(claimsByPatient)) {
+  for (const [patientId, claimsData] of Object.entries(claimsByPatient)) {
+    const claims = claimsData as any[];
     try {
       // Find patient by external ID
       const patient = await prisma.patient.findFirst({
@@ -150,17 +182,14 @@ async function handleClaimsUpload(csvText: string, fileName: string) {
         continue;
       }
 
-      // Delete existing claims for this patient
-      await prisma.pharmacyClaim.deleteMany({
-        where: { patientId: patient.id },
-      });
-
-      // Insert new claims
+      // Insert new claims with uploadLogId (do NOT delete existing)
       await prisma.pharmacyClaim.createMany({
         data: claims.map(claim => ({
           ...claim,
           patientId: patient.id,
+          uploadLogId: uploadLog.id,
         })),
+        skipDuplicates: true,
       });
 
       successCount += claims.length;
@@ -170,10 +199,10 @@ async function handleClaimsUpload(csvText: string, fileName: string) {
     }
   }
 
-  await prisma.uploadLog.create({
+  // Update upload log with final counts
+  await prisma.uploadLog.update({
+    where: { id: uploadLog.id },
     data: {
-      uploadType: 'CLAIMS',
-      fileName,
       rowsProcessed: successCount,
       rowsFailed: failCount,
       errors: errors.length > 0 ? errors : undefined,
@@ -191,19 +220,7 @@ async function handleClaimsUpload(csvText: string, fileName: string) {
 async function handleEligibilityUpload(csvText: string, fileName: string) {
   const parsed = Papa.parse(csvText, { header: true, skipEmptyLines: true });
 
-  // Get or create default plan
-  let plan = await prisma.insurancePlan.findFirst();
-  if (!plan) {
-    plan = await prisma.insurancePlan.create({
-      data: {
-        planName: 'Default Plan',
-        payerName: 'Default Payer',
-        formularyVersion: new Date().toISOString().split('T')[0],
-      },
-    });
-  }
-
-  const { rows, errors } = parseEligibilityCSV(parsed.data as any[], plan.id);
+  const { rows, errors } = parseEligibilityCSV(parsed.data as any[]);
 
   if (errors.length > 0 && rows.length === 0) {
     await prisma.uploadLog.create({
@@ -223,21 +240,58 @@ async function handleEligibilityUpload(csvText: string, fileName: string) {
     });
   }
 
+  // Extract unique plan names from the CSV
+  const uniquePlanNames = [...new Set(rows.map(row => row.planName))];
+
+  // Find or create insurance plans for each unique plan name
+  const planNameToIdMap: Record<string, string> = {};
+
+  for (const planName of uniquePlanNames) {
+    let plan = await prisma.insurancePlan.findFirst({
+      where: { planName },
+    });
+
+    if (!plan) {
+      // Create new plan if it doesn't exist
+      plan = await prisma.insurancePlan.create({
+        data: {
+          planName,
+          payerName: planName, // Default to same as planName
+          formularyVersion: new Date().toISOString().split('T')[0],
+        },
+      });
+    }
+
+    planNameToIdMap[planName] = plan.id;
+  }
+
   // Upsert patients
   let successCount = 0;
   let failCount = 0;
 
   for (const row of rows) {
     try {
+      const planId = planNameToIdMap[row.planName];
+
+      if (!planId) {
+        throw new Error(`Plan ID not found for plan name: ${row.planName}`);
+      }
+
       await prisma.patient.upsert({
         where: { externalId: row.externalId },
         update: {
           firstName: row.firstName,
           lastName: row.lastName,
           dateOfBirth: row.dateOfBirth,
-          planId: row.planId,
+          planId,
         },
-        create: row,
+        create: {
+          externalId: row.externalId,
+          firstName: row.firstName,
+          lastName: row.lastName,
+          dateOfBirth: row.dateOfBirth,
+          planId,
+        },
       });
       successCount++;
     } catch (error: any) {
@@ -265,31 +319,81 @@ async function handleEligibilityUpload(csvText: string, fileName: string) {
 }
 
 async function handleKnowledgeUpload(file: File) {
-  // For now, just store the file content
-  // TODO: Implement PDF parsing and embedding generation
-  const text = await file.text();
+  let text = '';
 
-  await prisma.knowledgeDocument.create({
-    data: {
-      title: file.name,
-      content: text,
-      category: 'CLINICAL_GUIDELINE',
-      sourceFile: file.name,
-    },
-  });
+  if (file.name.endsWith('.pdf')) {
+    // For PDFs, use pdf-parse
+    const pdf = require('pdf-parse');
+    const arrayBuffer = await file.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    const data = await pdf(buffer);
+    text = data.text;
+  } else {
+    // For markdown/text files
+    text = await file.text();
+  }
+
+  // Strip null bytes that PostgreSQL doesn't like
+  text = text.replace(/\0/g, '');
+
+  // Chunk the text using paragraph-based chunking
+  const chunks = chunkTextByParagraph(text, 700, 100);
+
+  let successCount = 0;
+  let failCount = 0;
+
+  // Generate embeddings and store each chunk
+  for (const chunk of chunks) {
+    try {
+      const embedding = await generateEmbedding(chunk.content);
+      const embeddingStr = `[${embedding.join(',')}]`;
+
+      // Store chunk with embedding using raw SQL
+      await prisma.$queryRawUnsafe(`
+        INSERT INTO "KnowledgeDocument" (
+          id,
+          title,
+          content,
+          embedding,
+          category,
+          "sourceFile",
+          metadata,
+          "createdAt",
+          "updatedAt"
+        )
+        VALUES (
+          gen_random_uuid()::text,
+          $1,
+          $2,
+          $3::vector,
+          'CLINICAL_GUIDELINE',
+          $4,
+          '{"chunkIndex": ${chunk.index}}'::jsonb,
+          NOW(),
+          NOW()
+        )
+      `, `${file.name} (chunk ${chunk.index})`, chunk.content, embeddingStr, file.name);
+
+      successCount++;
+    } catch (error: any) {
+      console.error(`Error processing chunk ${chunk.index}:`, error);
+      failCount++;
+    }
+  }
 
   await prisma.uploadLog.create({
     data: {
       uploadType: 'KNOWLEDGE',
       fileName: file.name,
-      rowsProcessed: 1,
-      rowsFailed: 0,
+      rowsProcessed: successCount,
+      rowsFailed: failCount,
     },
   });
 
   return NextResponse.json({
-    success: true,
-    rowsProcessed: 1,
-    rowsFailed: 0,
+    success: successCount > 0,
+    rowsProcessed: successCount,
+    rowsFailed: failCount,
+    message: successCount > 0 ? `Successfully processed ${successCount} chunks from ${file.name}` : 'Failed to process file',
   });
 }

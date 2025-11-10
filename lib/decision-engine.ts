@@ -81,6 +81,22 @@ export function getQuadrant(isStable: boolean, isFormularyOptimal: boolean): str
 }
 
 /**
+ * Check if a drug is approved for a patient's diagnosis
+ */
+export function isDrugIndicatedForDiagnosis(
+  drug: FormularyDrug,
+  diagnosis: DiagnosisType
+): boolean {
+  // If no indications specified, assume it's available for all (for backward compatibility)
+  if (!drug.approvedIndications || drug.approvedIndications.length === 0) {
+    return true;
+  }
+
+  // Check if the diagnosis is in the approved indications list
+  return drug.approvedIndications.includes(diagnosis);
+}
+
+/**
  * Check if a drug is contraindicated for a patient
  */
 export function checkContraindications(
@@ -135,11 +151,7 @@ export async function generateRecommendations(
         take: 12,
       },
       contraindications: true,
-      plan: {
-        include: {
-          formularyDrugs: true,
-        },
-      },
+      plan: true,
     },
   });
 
@@ -147,32 +159,69 @@ export async function generateRecommendations(
     throw new Error('Patient not found');
   }
 
-  const currentBiologic = patient.currentBiologics[0]; // For MVP, assume one biologic
+  // Get the most recent formulary upload for this plan
+  const mostRecentUpload = await prisma.uploadLog.findFirst({
+    where: {
+      uploadType: 'FORMULARY',
+      planId: patient.planId,
+    },
+    orderBy: { uploadedAt: 'desc' },
+    select: { id: true },
+  });
+
+  // Fetch formulary drugs from the most recent upload only
+  const formularyDrugs = mostRecentUpload
+    ? await prisma.formularyDrug.findMany({
+        where: {
+          planId: patient.planId,
+          uploadLogId: mostRecentUpload.id,
+        },
+      })
+    : [];
+
+  // Add formularyDrugs to patient.plan for compatibility with existing code
+  const patientWithFormulary = {
+    ...patient,
+    plan: {
+      ...patient.plan,
+      formularyDrugs,
+    },
+  } as PatientWithData;
+
+  const currentBiologic = patientWithFormulary.currentBiologics[0]; // For MVP, assume one biologic
   if (!currentBiologic) {
     throw new Error('No current biologic found for patient');
   }
 
-  // Find current drug in formulary
-  const currentFormularyDrug = patient.plan.formularyDrugs.find(
-    drug => drug.drugName.toLowerCase() === currentBiologic.drugName.toLowerCase()
-  );
+  // Find current drug in formulary (match by brand name OR generic name for biosimilars)
+  const currentFormularyDrug = patientWithFormulary.plan.formularyDrugs.find(drug => {
+    const brandMatch = drug.drugName.toLowerCase() === currentBiologic.drugName.toLowerCase();
+    // Also check generic name to catch biosimilars (e.g., Amjevita = adalimumab-atto)
+    const genericMatch = drug.genericName.toLowerCase() === currentBiologic.drugName.toLowerCase() ||
+                        drug.genericName.toLowerCase().startsWith(currentBiologic.drugName.toLowerCase() + '-');
+    return brandMatch || genericMatch;
+  });
 
   // Determine stability and formulary status
   const isStable = determineStability(assessment.dlqiScore, assessment.monthsStable);
   const isFormularyOptimal = determineFormularyStatus(currentFormularyDrug || null);
   const quadrant = getQuadrant(isStable, isFormularyOptimal);
 
-  // Search knowledge base for relevant evidence
+  // Search knowledge base for relevant evidence using dynamic similarity threshold
   const knowledgeQuery = `${assessment.diagnosis} ${currentBiologic.drugName} ${quadrant}`;
-  const evidence = await searchKnowledge(knowledgeQuery, 3);
+  const evidence = await searchKnowledge(knowledgeQuery, {
+    minSimilarity: 0.65,
+    maxResults: 10
+  });
 
   // Generate recommendations based on quadrant
   const recommendations: RecommendationOutput[] = [];
 
   if (quadrant === 'stable_non_formulary') {
     // Switch to biosimilar or formulary-preferred
-    const alternatives = patient.plan.formularyDrugs
+    const alternatives = patientWithFormulary.plan.formularyDrugs
       .filter(drug =>
+        isDrugIndicatedForDiagnosis(drug, assessment.diagnosis) &&
         (drug.biosimilarOf?.toLowerCase() === currentBiologic.drugName.toLowerCase() ||
          drug.drugClass === currentFormularyDrug?.drugClass) &&
         drug.tier < (currentFormularyDrug?.tier || 999)
@@ -180,7 +229,7 @@ export async function generateRecommendations(
       .sort((a, b) => a.tier - b.tier);
 
     for (const alt of alternatives.slice(0, 2)) {
-      const contraCheck = checkContraindications(alt, patient.contraindications);
+      const contraCheck = checkContraindications(alt, patientWithFormulary.contraindications);
 
       recommendations.push({
         rank: recommendations.length + 1,
@@ -247,15 +296,16 @@ export async function generateRecommendations(
     });
   } else {
     // unstable_non_formulary: Switch to preferred with different mechanism
-    const alternatives = patient.plan.formularyDrugs
+    const alternatives = patientWithFormulary.plan.formularyDrugs
       .filter(drug =>
+        isDrugIndicatedForDiagnosis(drug, assessment.diagnosis) &&
         drug.tier <= 2 &&
         drug.drugName !== currentBiologic.drugName
       )
       .sort((a, b) => a.tier - b.tier);
 
     for (const alt of alternatives.slice(0, 2)) {
-      const contraCheck = checkContraindications(alt, patient.contraindications);
+      const contraCheck = checkContraindications(alt, patientWithFormulary.contraindications);
 
       recommendations.push({
         rank: recommendations.length + 1,
