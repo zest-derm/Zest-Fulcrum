@@ -224,9 +224,16 @@ export default function DataManagementPage() {
                           <button
                             onClick={() => handleDelete(doc.id, 'knowledge')}
                             disabled={deleting === doc.id}
-                            className="text-red-600 hover:text-red-900 disabled:opacity-50"
+                            className="text-red-600 hover:text-red-900 disabled:opacity-50 transition-all duration-150 hover:scale-110 active:scale-95"
                           >
-                            <Trash2 className="w-4 h-4 inline" />
+                            {deleting === doc.id ? (
+                              <svg className="spinner w-4 h-4 inline" viewBox="0 0 24 24" fill="none">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                              </svg>
+                            ) : (
+                              <Trash2 className="w-4 h-4 inline" />
+                            )}
                           </button>
                         </td>
                       </tr>
@@ -284,7 +291,7 @@ export default function DataManagementPage() {
                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                           <button
                             onClick={() => handleView(dataset.id, 'formulary')}
-                            className="text-primary-600 hover:text-primary-900 mr-3"
+                            className="text-primary-600 hover:text-primary-900 mr-3 transition-all duration-150 hover:scale-110 active:scale-95"
                             title="View/Download dataset as CSV"
                           >
                             <Eye className="w-4 h-4 inline" />
@@ -292,10 +299,17 @@ export default function DataManagementPage() {
                           <button
                             onClick={() => handleDelete(dataset.id, 'formulary')}
                             disabled={deleting === dataset.id}
-                            className="text-red-600 hover:text-red-900 disabled:opacity-50"
+                            className="text-red-600 hover:text-red-900 disabled:opacity-50 transition-all duration-150 hover:scale-110 active:scale-95"
                             title="Delete entire dataset"
                           >
-                            <Trash2 className="w-4 h-4 inline" />
+                            {deleting === dataset.id ? (
+                              <svg className="spinner w-4 h-4 inline" viewBox="0 0 24 24" fill="none">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                              </svg>
+                            ) : (
+                              <Trash2 className="w-4 h-4 inline" />
+                            )}
                           </button>
                         </td>
                       </tr>
@@ -346,7 +360,7 @@ export default function DataManagementPage() {
                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                           <button
                             onClick={() => handleView(dataset.id, 'claims')}
-                            className="text-primary-600 hover:text-primary-900 mr-3"
+                            className="text-primary-600 hover:text-primary-900 mr-3 transition-all duration-150 hover:scale-110 active:scale-95"
                             title="View/Download dataset as CSV"
                           >
                             <Eye className="w-4 h-4 inline" />
@@ -354,10 +368,17 @@ export default function DataManagementPage() {
                           <button
                             onClick={() => handleDelete(dataset.id, 'claims')}
                             disabled={deleting === dataset.id}
-                            className="text-red-600 hover:text-red-900 disabled:opacity-50"
+                            className="text-red-600 hover:text-red-900 disabled:opacity-50 transition-all duration-150 hover:scale-110 active:scale-95"
                             title="Delete entire dataset"
                           >
-                            <Trash2 className="w-4 h-4 inline" />
+                            {deleting === dataset.id ? (
+                              <svg className="spinner w-4 h-4 inline" viewBox="0 0 24 24" fill="none">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                              </svg>
+                            ) : (
+                              <Trash2 className="w-4 h-4 inline" />
+                            )}
                           </button>
                         </td>
                       </tr>
