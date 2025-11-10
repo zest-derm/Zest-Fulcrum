@@ -499,9 +499,11 @@ export async function generateLLMRecommendations(
   const triage = await triagePatient(assessment, genericDrugName || 'None', currentFormularyDrug || null, quadrant);
   console.log('Triage result:', JSON.stringify(triage));
 
-  // Step 3: Targeted RAG Retrieval
+  // Step 3: Targeted RAG Retrieval (for LLM context, not for display)
+  // Note: This evidence helps the LLM generate recommendations but won't be shown to users
+  // Drug-specific evidence for DOSE_REDUCTION will be retrieved separately in Step 5
   const evidence = await retrieveRelevantEvidence(genericDrugName, assessment.diagnosis, triage);
-  console.log(`Retrieved ${evidence.length} evidence chunks`);
+  console.log(`Retrieved ${evidence.length} evidence chunks for LLM context`);
 
   // Step 4: Filter drugs by diagnosis, then by contraindications
   const diagnosisAppropriateDrugs = filterByDiagnosis(patient.plan.formularyDrugs, assessment.diagnosis);
@@ -531,18 +533,31 @@ export async function generateLLMRecommendations(
     patient.contraindications
   );
 
-  // Step 5: Add cost calculations and format
-  // TODO: Current RAG limitation - all recommendations use the SAME evidence (retrieved once for current drug)
-  // Proper implementation should retrieve drug-specific evidence for each recommendation:
-  //   - Cosentyx rec → search "Cosentyx psoriasis efficacy"
-  //   - Skyrizi rec → search "Skyrizi psoriasis efficacy"
-  //   - etc.
-  const recommendations = llmRecs.map(rec => {
+  // Step 5: Add cost calculations and retrieve drug-specific evidence for dose reduction
+  // TRUE RAG: Only retrieve evidence for DOSE_REDUCTION (needs literature to convince clinicians)
+  // Formulary switches don't need RAG - they're straightforward cost optimizations
+  const recommendations = await Promise.all(llmRecs.map(async rec => {
     const targetDrug = rec.drugName
       ? patient.plan!.formularyDrugs.find(d => d.drugName.toLowerCase() === rec.drugName?.toLowerCase()) ?? null
       : null;
 
     const costData = calculateCostSavings(rec, currentFormularyDrug, targetDrug);
+
+    // Retrieve drug-specific evidence ONLY for dose reduction recommendations
+    let drugSpecificEvidence: string[] = [];
+    if (rec.type === 'DOSE_REDUCTION' && rec.drugName) {
+      const queries = [
+        `${rec.drugName} dose reduction interval extension ${assessment.diagnosis} stable patients`,
+        `${rec.drugName} extended dosing efficacy safety ${assessment.diagnosis}`,
+        `${rec.drugName} treatment optimization ${assessment.diagnosis} guidelines`
+      ];
+
+      const evidenceResults = await Promise.all(
+        queries.map(query => searchKnowledge(query, 2))
+      );
+
+      drugSpecificEvidence = evidenceResults.flat().map(e => `${e.title}: ${e.content.substring(0, 500)}...`);
+    }
 
     return {
       rank: rec.rank,
@@ -552,14 +567,14 @@ export async function generateLLMRecommendations(
       newFrequency: rec.newFrequency,
       ...costData,
       rationale: rec.rationale,
-      evidenceSources: evidence.slice(0, 3), // Keep full evidence with content excerpts
+      evidenceSources: drugSpecificEvidence.length > 0 ? drugSpecificEvidence.slice(0, 3) : [], // Only show for dose reduction
       monitoringPlan: rec.monitoringPlan,
       tier: targetDrug?.tier || currentFormularyDrug?.tier,
       requiresPA: targetDrug?.requiresPA || currentFormularyDrug?.requiresPA,
       contraindicated: false, // LLM should handle contraindications in rationale
       contraindicationReason: undefined,
     };
-  });
+  }));
 
   // Create complete formulary reference (all safe drugs sorted by tier)
   const formularyReference = sortedFormularyDrugs.map(drug => ({
