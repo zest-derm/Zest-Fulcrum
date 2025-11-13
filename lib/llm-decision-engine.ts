@@ -566,9 +566,20 @@ export async function generateLLMRecommendations(
       );
 
       // Flatten and format evidence with similarity scores for transparency
+      // Filter out metadata patterns and show longer excerpts (800 chars) for better context
       drugSpecificEvidence = evidenceResults
         .flat()
-        .map(e => `${e.title} (relevance: ${(e.similarity * 100).toFixed(0)}%): ${e.content.substring(0, 500)}...`);
+        .map(e => {
+          // Clean content: remove common PDF metadata patterns
+          let cleanContent = e.content
+            .replace(/^.*?(Abstract|ABSTRACT|Background\/objectives?|Introduction|INTRODUCTION):/i, '$1:')
+            .replace(/^\s*[A-Z][a-z]+\s+[A-Z][a-z]+,?\s+[A-Z]\..*?\n/gm, '') // Author names
+            .replace(/^\s*\d+\s*$/gm, '') // Page numbers alone on a line
+            .replace(/doi:\s*\S+/gi, '') // DOI references
+            .trim();
+
+          return `${e.title} (relevance: ${(e.similarity * 100).toFixed(0)}%): ${cleanContent.substring(0, 800)}...`;
+        });
     }
 
     // For dose reduction, display the BRAND name (Amjevita) not generic (adalimumab)
@@ -587,8 +598,14 @@ export async function generateLLMRecommendations(
       rationale: rec.rationale,
       evidenceSources: drugSpecificEvidence, // Show all dynamically retrieved evidence
       monitoringPlan: rec.monitoringPlan,
-      tier: targetDrug?.tier || currentFormularyDrug?.tier,
-      requiresPA: targetDrug?.requiresPA || currentFormularyDrug?.requiresPA,
+      // For DOSE_REDUCTION, use current drug's tier (no target drug, staying on same medication)
+      // For switches, use target drug's tier
+      tier: rec.type === 'DOSE_REDUCTION'
+        ? currentFormularyDrug?.tier
+        : (targetDrug?.tier || currentFormularyDrug?.tier),
+      requiresPA: rec.type === 'DOSE_REDUCTION'
+        ? currentFormularyDrug?.requiresPA
+        : (targetDrug?.requiresPA || currentFormularyDrug?.requiresPA),
       contraindicated: false, // LLM should handle contraindications in rationale
       contraindicationReason: undefined,
     };
