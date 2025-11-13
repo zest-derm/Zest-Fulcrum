@@ -144,7 +144,9 @@ The patient has been classified as: ${quadrant}
 - stable_optimal: Stable + Tier 1 without PA → Consider dose reduction OR within-tier optimization
 - stable_suboptimal: Stable + Tier 2-3 → MUST recommend switch to Tier 1
 - unstable_optimal: Unstable + Tier 1 → Consider different Tier 1 option or optimize current
-- unstable_suboptimal: Unstable + Tier 2-3 → Switch to better Tier 1 option
+- unstable_suboptimal: Unstable + Tier 2-3 → ⚠️ MUST recommend switch to Tier 1 (NEVER just continue or optimize current)
+
+CRITICAL: Tier 2 and Tier 3 indicate room for optimization. These patients should ALWAYS get switch recommendations to Tier 1.
 
 Based on the quadrant "${quadrant}", determine:
 1. Should dose reduction be considered? (Only for stable_optimal AND currently Tier 1, NOT for stable_short_duration)
@@ -327,11 +329,22 @@ CONTRAINDICATION RULES (CRITICAL - NEVER recommend contraindicated drugs):
 - ALL biologics: CONTRAINDICATED if ACTIVE_INFECTION
 - Contraindicated drugs have been PRE-FILTERED from formulary options shown above
 
+CRITICAL TIER OPTIMIZATION RULES:
+⚠️ **Tier 2 and Tier 3 should ALMOST NEVER result in CONTINUE or just OPTIMIZE_CURRENT**
+   - There is ALWAYS room to optimize by moving to Tier 1
+   - Generate SWITCH recommendations to Tier 1 drugs
+   - Only use CONTINUE if you absolutely cannot generate 3 switch options
+
+⚠️ **CONTINUE should ONLY be used when:**
+   - Already on Tier 1 AND stable AND dose-reduced/optimized (truly no more optimization possible)
+   - OR you cannot generate 3 other recommendations despite trying
+
 CLINICAL DECISION-MAKING GUIDELINES:
 1. **not_on_biologic**: Recommend BEST Tier 1 option based on:
    - Highest efficacy for ${assessment.diagnosis} (cite RAG evidence)
    - Psoriatic arthritis coverage if needed: ${assessment.hasPsoriaticArthritis ? 'YES - prefer drugs with PsA indication' : 'NO'}
    - Lowest cost within Tier 1
+   - Generate 2-3 Tier 1 options if available
 
 2. **stable_short_duration** (DLQI ≤1 but <6 months stable):
    - PRIMARY: CONTINUE_CURRENT - patient has excellent control but insufficient duration
@@ -521,7 +534,13 @@ export async function generateLLMRecommendations(
     : [];
 
   // Add formularyDrugs to patient.plan for compatibility with existing code
-  patient.plan.formularyDrugs = formularyDrugs;
+  const patientWithFormulary = {
+    ...patient,
+    plan: {
+      ...patient.plan,
+      formularyDrugs,
+    },
+  };
 
   const currentBiologic = patient.currentBiologics[0];
   const hasCurrentBiologic = !!currentBiologic;
@@ -533,7 +552,7 @@ export async function generateLLMRecommendations(
 
   // Find current drug in formulary (match by brand name OR generic name)
   const currentFormularyDrug = currentBiologic
-    ? patient.plan.formularyDrugs.find(drug => {
+    ? patientWithFormulary.plan.formularyDrugs.find(drug => {
         const brandMatch = drug.drugName.toLowerCase() === currentBiologic.drugName.toLowerCase();
         const genericMatch = genericDrugName && (
           drug.genericName.toLowerCase() === genericDrugName.toLowerCase() ||
@@ -563,9 +582,9 @@ export async function generateLLMRecommendations(
   console.log(`Retrieved ${evidence.length} evidence chunks for LLM context`);
 
   // Step 4: Filter drugs by diagnosis, then by contraindications
-  const diagnosisAppropriateDrugs = filterByDiagnosis(patient.plan.formularyDrugs, assessment.diagnosis);
+  const diagnosisAppropriateDrugs = filterByDiagnosis(patientWithFormulary.plan.formularyDrugs, assessment.diagnosis);
   const safeFormularyDrugs = filterContraindicated(diagnosisAppropriateDrugs, patient.contraindications);
-  console.log(`Filtered formulary: ${patient.plan.formularyDrugs.length} total → ${diagnosisAppropriateDrugs.length} for ${assessment.diagnosis} → ${safeFormularyDrugs.length} safe`);
+  console.log(`Filtered formulary: ${patientWithFormulary.plan.formularyDrugs.length} total → ${diagnosisAppropriateDrugs.length} for ${assessment.diagnosis} → ${safeFormularyDrugs.length} safe`);
 
   // Sort safe formulary drugs to prioritize lower tiers
   const sortedFormularyDrugs = [...safeFormularyDrugs].sort((a, b) => {
@@ -595,7 +614,7 @@ export async function generateLLMRecommendations(
   // Formulary switches don't need RAG - they're straightforward cost optimizations
   const recommendations = await Promise.all(llmRecs.map(async rec => {
     const targetDrug = rec.drugName
-      ? patient.plan!.formularyDrugs.find(d => d.drugName.toLowerCase() === rec.drugName?.toLowerCase()) ?? null
+      ? patientWithFormulary.plan.formularyDrugs.find(d => d.drugName.toLowerCase() === rec.drugName?.toLowerCase()) ?? null
       : null;
 
     const costData = calculateCostSavings(rec, currentFormularyDrug, targetDrug);
