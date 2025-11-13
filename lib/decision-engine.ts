@@ -61,13 +61,17 @@ export function determineStability(dlqiScore: number, monthsStable: number): boo
 
 /**
  * Determine if current medication is formulary-optimal
+ * ONLY Tier 1 without PA is truly optimal
+ * Tier 2 = acceptable but room for improvement
+ * Tier 3+ = always suboptimal, requires switch
  */
 export function determineFormularyStatus(
   currentDrug: FormularyDrug | null
 ): boolean {
   if (!currentDrug) return false;
-  // Optimal if Tier 1-2 and no PA required
-  return currentDrug.tier <= 2 && !currentDrug.requiresPA;
+  // Optimal ONLY if Tier 1 and no PA required
+  // Tier 2-3 are always suboptimal (cost optimization opportunities exist)
+  return currentDrug.tier === 1 && !currentDrug.requiresPA;
 }
 
 /**
