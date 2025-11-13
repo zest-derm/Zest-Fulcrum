@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/db';
 import { notFound } from 'next/navigation';
-import { CheckCircle, AlertCircle, TrendingDown, DollarSign, FileText } from 'lucide-react';
+import { AlertCircle, TrendingDown, DollarSign, FileText } from 'lucide-react';
 
 interface PageProps {
   params: { id: string };
@@ -203,10 +203,12 @@ export default async function RecommendationsPage({ params }: PageProps) {
                         </span>
                       )}
                     </div>
-                    <p className="text-sm text-gray-600">
-                      {rec.newDose} {rec.newFrequency}
-                    </p>
-                    <p className="text-xs text-gray-500 mt-1">
+                    <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded">
+                      <p className="text-sm font-semibold text-blue-900">
+                        Recommended Dosing: {rec.newDose} {rec.newFrequency}
+                      </p>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-2">
                       {rec.type.replace(/_/g, ' ')} • Tier {rec.tier || 'N/A'}
                       {rec.requiresPA && ' • PA Required'}
                     </p>
@@ -348,21 +350,6 @@ export default async function RecommendationsPage({ params }: PageProps) {
                 <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
                   <h4 className="font-semibold text-sm mb-1 text-blue-900">Monitoring Plan</h4>
                   <p className="text-sm text-blue-800">{rec.monitoringPlan}</p>
-                </div>
-              )}
-
-              {/* Action Buttons */}
-              {!isContraindicated && (
-                <div className="mt-4 pt-4 border-t flex gap-3">
-                  <form action={`/api/recommendations/${rec.id}/accept`} method="POST">
-                    <button type="submit" className="btn btn-primary">
-                      <CheckCircle className="w-4 h-4 inline mr-2" />
-                      Accept Recommendation
-                    </button>
-                  </form>
-                  <button className="btn btn-secondary">
-                    Modify
-                  </button>
                 </div>
               )}
             </div>
