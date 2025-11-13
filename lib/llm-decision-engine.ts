@@ -305,26 +305,43 @@ CLINICAL DECISION-MAKING GUIDELINES:
    - Lowest cost within Tier 1
 
 2. **stable_optimal** (Tier 1, stable):
-   - Consider dose reduction (cite RAG for intervals)
-   - OR compare to other Tier 1 options if significant cost difference exists
+   - PRIMARY: Dose reduction (cite RAG evidence for safety/efficacy of extended intervals)
+   - ALTERNATIVE: Switch to different Tier 1 ONLY if biosimilar or significantly lower cost
 
-3. **stable_suboptimal** (Tier 2-3, stable):
-   - MUST switch to Tier 1
-   - Compare efficacy within same class first (e.g., IL-23 to IL-23)
-   - Consider cross-class if better efficacy (e.g., TNF to IL-17/IL-23)
+3. **stable_suboptimal** - TIER-SPECIFIC STRATEGY:
+
+   a. **Tier 2 (stable)** - Two options, ranked by cost savings:
+      - OPTION 1 (Preferred): Switch to Tier 1 biosimilar or same-class drug
+      - OPTION 2 (Alternative): Dose reduction of current Tier 2 drug (cite RAG evidence)
+      - Rank by total cost optimization potential
+      - No RAG needed for switch rationale (formulary alignment is self-evident)
+
+   b. **Tier 3 (stable)** - Switch ONLY (NEVER dose reduce):
+      - MUST switch to Tier 1 or Tier 2 (prefer Tier 1)
+      - Prioritize biosimilars of same drug if available
+      - Then same-class drugs
+      - Then cross-class if better efficacy
+      - No RAG needed for switch rationale (cost optimization is obvious)
 
 4. **unstable_optimal** (Tier 1, unstable):
-   - Switch to different Tier 1 with better efficacy
-   - Consider different mechanism of action
+   - Switch to different Tier 1 with superior efficacy (cite evidence)
+   - Prefer different mechanism of action (e.g., if TNF failed, try IL-17 or IL-23)
+   - Target drugs with proven higher efficacy for ${assessment.diagnosis}
 
 5. **unstable_suboptimal** (Tier 2-3, unstable):
-   - Switch to best Tier 1 option for efficacy
+   - Switch to Tier 1 drug with best efficacy for ${assessment.diagnosis} (cite evidence)
+   - Prefer different mechanism if current class failing
+   - If Tier 3 and same class as better Tier 1/2 option, recommend that
 
 PRIORITIZATION:
 - Always prefer Tier 1 > Tier 2 > Tier 3
 - Within same tier: Higher efficacy > Lower cost
-- Use RAG evidence to support efficacy claims
 - For ${assessment.diagnosis}, consider drug class preferences from guidelines
+
+EVIDENCE REQUIREMENTS (RAG):
+- **DOSE REDUCTION**: ALWAYS cite RAG evidence (clinically controversial)
+- **FORMULARY SWITCHES** (Tier 3→1, Tier 2→1): NO RAG needed (cost optimization is self-evident business case)
+- **THERAPEUTIC SWITCHES** (unstable, changing mechanism): CITE RAG evidence for efficacy claims
 
 Generate 1-3 specific recommendations ranked by clinical benefit and cost savings. For EACH recommendation:
 1. Type (DOSE_REDUCTION, SWITCH_TO_BIOSIMILAR, SWITCH_TO_PREFERRED, THERAPEUTIC_SWITCH, or OPTIMIZE_CURRENT)

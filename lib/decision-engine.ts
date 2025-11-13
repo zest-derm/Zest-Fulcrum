@@ -222,16 +222,32 @@ export async function generateRecommendations(
   const recommendations: RecommendationOutput[] = [];
 
   if (quadrant === 'stable_non_formulary') {
-    // Switch to biosimilar or formulary-preferred
+    // Tier 2 vs Tier 3 strategy differs:
+    // Tier 2: Offer switch (preferred) AND dose reduction (alternative)
+    // Tier 3: Offer switch ONLY (never dose reduce high-cost drugs)
+    const currentTier = currentFormularyDrug?.tier || 999;
+
+    // Option 1: Switch to lower-tier alternatives (always recommended for Tier 2-3)
     const alternatives = patientWithFormulary.plan.formularyDrugs
       .filter(drug =>
         isDrugIndicatedForDiagnosis(drug, assessment.diagnosis) &&
         (drug.biosimilarOf?.toLowerCase() === currentBiologic.drugName.toLowerCase() ||
          drug.drugClass === currentFormularyDrug?.drugClass) &&
-        drug.tier < (currentFormularyDrug?.tier || 999)
+        drug.tier < currentTier
       )
-      .sort((a, b) => a.tier - b.tier);
+      .sort((a, b) => {
+        // Sort by tier first, then by cost savings
+        if (a.tier !== b.tier) return a.tier - b.tier;
+        const savingsA = currentFormularyDrug?.annualCostWAC && a.annualCostWAC
+          ? currentFormularyDrug.annualCostWAC.minus(a.annualCostWAC).toNumber()
+          : 0;
+        const savingsB = currentFormularyDrug?.annualCostWAC && b.annualCostWAC
+          ? currentFormularyDrug.annualCostWAC.minus(b.annualCostWAC).toNumber()
+          : 0;
+        return savingsB - savingsA; // Higher savings first
+      });
 
+    // Add switch recommendations (up to 2)
     for (const alt of alternatives.slice(0, 2)) {
       const contraCheck = checkContraindications(alt, patientWithFormulary.contraindications);
 
@@ -253,16 +269,55 @@ export async function generateRecommendations(
         recommendedMonthlyOOP: alt.memberCopayT1?.div(12).toNumber(),
         rationale: alt.biosimilarOf
           ? `Patient is stable (DLQI ${assessment.dlqiScore}) for ${assessment.monthsStable} months. Switch to biosimilar maintains efficacy while reducing costs and improving formulary alignment.`
-          : `Switch to preferred formulary agent maintains disease control while reducing costs and PA requirements.`,
-        evidenceSources: evidence.map(e => e.title),
+          : `Switch to Tier ${alt.tier} preferred agent maintains disease control while reducing costs and PA requirements.`,
+        evidenceSources: [], // No RAG needed for formulary switches - business case is self-evident
         monitoringPlan: 'Assess DLQI at 3 and 6 months post-switch. Monitor for any disease flare or adverse events.',
         tier: alt.tier,
         requiresPA: alt.requiresPA,
         ...contraCheck,
       });
     }
+
+    // Option 2: For Tier 2 ONLY, also offer dose reduction as alternative
+    // Tier 3 is too expensive - must switch, cannot dose reduce
+    if (currentTier === 2 && recommendations.length < 3) {
+      // Retrieve dose reduction evidence for Tier 2
+      const doseReductionEvidence = await searchKnowledge(`${currentBiologic.drugName} dose reduction ${assessment.diagnosis}`, {
+        minSimilarity: 0.65,
+        maxResults: 10
+      });
+
+      recommendations.push({
+        rank: recommendations.length + 1,
+        type: 'DOSE_REDUCTION',
+        drugName: currentBiologic.drugName,
+        newDose: currentBiologic.dose,
+        newFrequency: 'Extended interval (discuss with provider)',
+        currentAnnualCost: currentFormularyDrug?.annualCostWAC?.toNumber(),
+        recommendedAnnualCost: currentFormularyDrug?.annualCostWAC?.mul(0.75).toNumber(),
+        annualSavings: currentFormularyDrug?.annualCostWAC?.mul(0.25).toNumber(),
+        savingsPercent: 25,
+        currentMonthlyOOP: currentFormularyDrug?.memberCopayT1?.div(12).toNumber(),
+        recommendedMonthlyOOP: currentFormularyDrug?.memberCopayT1?.div(12).mul(0.75).toNumber(),
+        rationale: `Alternative to switching: Patient stable (DLQI ${assessment.dlqiScore}) for ${assessment.monthsStable} months. Extended dosing may maintain control while reducing costs, though formulary switch offers greater savings.`,
+        evidenceSources: doseReductionEvidence.map(e => e.title),
+        monitoringPlan: 'Close monitoring required. Assess DLQI monthly for first 3 months. Be prepared to resume standard dosing if disease activity increases.',
+        tier: currentFormularyDrug?.tier,
+        requiresPA: currentFormularyDrug?.requiresPA,
+        contraindicated: false,
+      });
+    }
   } else if (quadrant === 'stable_formulary_aligned') {
-    // Consider dose reduction
+    // Tier 1 optimal: Primary strategy is dose reduction
+    // Retrieve specific dose reduction evidence (RAG needed to convince clinicians)
+    const doseReductionEvidence = await searchKnowledge(
+      `${currentBiologic.drugName} dose reduction interval extension ${assessment.diagnosis} stable patients`,
+      {
+        minSimilarity: 0.65,
+        maxResults: 10
+      }
+    );
+
     recommendations.push({
       rank: 1,
       type: 'DOSE_REDUCTION',
@@ -275,8 +330,8 @@ export async function generateRecommendations(
       savingsPercent: 25,
       currentMonthlyOOP: currentFormularyDrug?.memberCopayT1?.div(12).toNumber(),
       recommendedMonthlyOOP: currentFormularyDrug?.memberCopayT1?.div(12).mul(0.75).toNumber(),
-      rationale: `Patient has stable disease (DLQI ${assessment.dlqiScore}) for ${assessment.monthsStable} months. Extended dosing intervals may maintain disease control while reducing costs.`,
-      evidenceSources: evidence.map(e => e.title),
+      rationale: `Patient has stable disease (DLQI ${assessment.dlqiScore}) for ${assessment.monthsStable} months on Tier 1 optimal medication. Extended dosing intervals may maintain disease control while reducing costs.`,
+      evidenceSources: doseReductionEvidence.map(e => e.title),
       monitoringPlan: 'Close monitoring required. Assess DLQI monthly for first 3 months, then quarterly. Be prepared to resume standard dosing if disease activity increases.',
       tier: currentFormularyDrug?.tier,
       requiresPA: currentFormularyDrug?.requiresPA,
