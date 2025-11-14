@@ -261,6 +261,46 @@ model KnowledgeDocument {
   @@index([category])
 }
 
+// Structured clinical findings (better than raw chunks)
+// Each finding is a complete, clean sentence extracted by LLM from a research paper
+model ClinicalFinding {
+  id              String                        @id @default(cuid())
+
+  // Paper metadata
+  paperTitle      String
+  paperAuthors    String
+  citation        String  // Full citation (e.g., "Atalay et al., J Dermatol Treat, 2021;33(3):1591-1597")
+  doi             String?
+  pubmedId        String?
+
+  // The actual finding (clean, complete sentence)
+  finding         String                        @db.Text
+
+  // Categorization for filtering
+  drug            String?  // e.g., "adalimumab", "etanercept"
+  drugClass       String?  // e.g., "TNF_INHIBITOR"
+  indication      String?  // e.g., "PSORIASIS", "ATOPIC_DERMATITIS"
+  findingType     String?  // e.g., "EFFICACY", "SAFETY", "DOSE_REDUCTION", "INTERVAL_EXTENSION"
+
+  // Metadata
+  sourceFile      String?
+  extractedAt     DateTime                      @default(now())
+  extractedBy     String?                       @default("llm")  // Can track if human-reviewed
+  reviewed        Boolean                       @default(false)
+
+  // Optional embedding for semantic search (if desired)
+  embedding       Unsupported("vector(1536)")?
+
+  createdAt       DateTime                      @default(now())
+  updatedAt       DateTime                      @updatedAt
+
+  @@index([drug])
+  @@index([indication])
+  @@index([findingType])
+  @@index([drugClass])
+  @@index([reviewed])
+}
+
 // ============================================
 // DATA UPLOAD TRACKING
 // ============================================

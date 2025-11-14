@@ -178,9 +178,67 @@ Return ONLY a JSON object with this exact structure:
 }
 
 /**
- * Step 3: Targeted RAG Retrieval based on triage result
+ * Step 3: Retrieve structured clinical findings (NEW APPROACH - replaces RAG chunks)
+ *
+ * Uses LLM-extracted findings instead of mechanical chunks for better quality
  */
-async function retrieveRelevantEvidence(
+async function retrieveStructuredFindings(
+  drugName: string | null,
+  diagnosis: DiagnosisType,
+  triage: TriageResult
+): Promise<string[]> {
+  // If dose reduction is needed, retrieve structured findings
+  if ((triage.canDoseReduce || triage.shouldContinueCurrent) && drugName) {
+    try {
+      const findings = await prisma.clinicalFinding.findMany({
+        where: {
+          AND: [
+            {
+              OR: [
+                { drug: { contains: drugName, mode: 'insensitive' } },
+                { finding: { contains: drugName, mode: 'insensitive' } },
+              ],
+            },
+            {
+              OR: [
+                { indication: { contains: diagnosis, mode: 'insensitive' } },
+                { finding: { contains: diagnosis, mode: 'insensitive' } },
+              ],
+            },
+            {
+              findingType: {
+                in: ['DOSE_REDUCTION', 'INTERVAL_EXTENSION', 'SAFETY', 'EFFICACY']
+              },
+            },
+          ],
+        },
+        orderBy: [
+          { reviewed: 'desc' },  // Prioritize reviewed findings
+          { createdAt: 'desc' },
+        ],
+        take: 15,  // More findings for comprehensive evidence
+      });
+
+      if (findings.length > 0) {
+        // Format findings as clean, physician-ready text
+        return findings.map(f =>
+          `📄 ${f.paperTitle}\nCitation: ${f.citation}\nFinding: ${f.finding}`
+        );
+      }
+    } catch (error) {
+      console.error('Error retrieving structured findings:', error);
+      // Fall through to RAG fallback
+    }
+  }
+
+  // FALLBACK: Use old RAG approach if structured findings not available
+  return retrieveRelevantEvidenceFallback(drugName, diagnosis, triage);
+}
+
+/**
+ * Fallback: Original RAG retrieval (for backward compatibility)
+ */
+async function retrieveRelevantEvidenceFallback(
   drugName: string | null,
   diagnosis: DiagnosisType,
   triage: TriageResult
@@ -618,11 +676,11 @@ export async function generateLLMRecommendations(
   const triage = await triagePatient(assessment, genericDrugName || 'None', currentFormularyDrug || null, quadrant);
   console.log('Triage result:', JSON.stringify(triage));
 
-  // Step 3: Targeted RAG Retrieval (for LLM context, not for display)
-  // Note: This evidence helps the LLM generate recommendations but won't be shown to users
-  // Drug-specific evidence for DOSE_REDUCTION will be retrieved separately in Step 5
-  const evidence = await retrieveRelevantEvidence(genericDrugName, assessment.diagnosis, triage);
-  console.log(`Retrieved ${evidence.length} evidence chunks for LLM context`);
+  // Step 3: Retrieve structured clinical findings (NEW APPROACH - replaces RAG)
+  // Uses LLM-extracted findings for clean, physician-ready evidence
+  // Falls back to old RAG chunks if structured findings not available
+  const evidence = await retrieveStructuredFindings(genericDrugName, assessment.diagnosis, triage);
+  console.log(`Retrieved ${evidence.length} evidence items for LLM context (${evidence[0]?.includes('📄') ? 'structured findings' : 'RAG fallback'})`);
 
   // Step 4: Filter drugs by diagnosis, then by contraindications
   const diagnosisAppropriateDrugs = filterByDiagnosis(patientWithFormulary.plan.formularyDrugs, assessment.diagnosis);
@@ -688,20 +746,53 @@ export async function generateLLMRecommendations(
       );
 
       // Flatten and format evidence with similarity scores for transparency
-      // Filter out metadata patterns and show longer excerpts (800 chars) for better context
+      // IMPORTANT: Current chunks have quality issues (truncated sentences, metadata, references)
+      // This cleaning is a band-aid - PDFs should be re-parsed with semantic chunking for production
       drugSpecificEvidence = evidenceResults
         .flat()
+        .filter(e => {
+          // Filter out bibliography/reference entries (contain common reference patterns)
+          const content = e.content.toLowerCase();
+          if (content.includes('et al.') && content.match(/\d{4}/g)?.length > 3) return false; // Multiple years = likely references
+          if (content.match(/doi:|https?:\/\/|pmid:/gi)) return false; // DOIs, URLs, PMIDs
+          if (content.match(/\d+\(\d+\):\d+-\d+/)) return false; // Journal citation format like "2016;96(2):251–252"
+          return true;
+        })
         .map(e => {
           // Clean content: remove common PDF metadata patterns
           let cleanContent = e.content
-            .replace(/^.*?(Abstract|ABSTRACT|Background\/objectives?|Introduction|INTRODUCTION):/i, '$1:')
-            .replace(/^\s*[A-Z][a-z]+\s+[A-Z][a-z]+,?\s+[A-Z]\..*?\n/gm, '') // Author names
-            .replace(/^\s*\d+\s*$/gm, '') // Page numbers alone on a line
-            .replace(/doi:\s*\S+/gi, '') // DOI references
+            // Remove everything before Abstract/Background/Introduction
+            .replace(/^.*?(Abstract|ABSTRACT|Background\/objectives?|Introduction|INTRODUCTION|Results?|RESULTS?):/i, '$1:')
+            // Remove institutional affiliations
+            .replace(/[a-z]\s+[A-Z][a-z]+\s+(University|Medical Center|Institute|Department|Hospital)[^.;]*[.;]/g, '')
+            // Remove author names (multiple patterns)
+            .replace(/^\s*[A-Z][a-z]+\s+[A-Z][a-z]+,?\s+[A-Z]\..*?\n/gm, '') // Smith J.
+            .replace(/^\s*[A-Z][a-z]+,\s*[A-Z]\.,?\s+[A-Z][a-z]+,\s*[A-Z]\./gm, '') // Smith, J., Jones, K.
+            // Remove email addresses
+            .replace(/[\w.-]+@[\w.-]+\.\w+/g, '')
+            // Remove page numbers alone on a line
+            .replace(/^\s*\d+\s*$/gm, '')
+            // Remove journal/copyright notices
+            .replace(/©.*?(?:Taylor|Francis|Wiley|Elsevier|Springer)[^.]*\./gi, '')
+            .replace(/Published online:.*?\d{4}/gi, '')
+            .replace(/View (supplementary material|related articles|citing articles)/gi, '')
+            // Remove DOI references
+            .replace(/doi:\s*\S+/gi, '')
+            .replace(/https?:\/\/\S+/g, '')
+            // Remove common acknowledgment patterns
+            .replace(/Acknowledgements?:.*?(?=\n\n|\n[A-Z]|$)/gi, '')
+            .replace(/Disclosure statement.*?(?=\n\n|\n[A-Z]|$)/gi, '')
+            .replace(/Funding:.*?(?=\n\n|\n[A-Z]|$)/gi, '')
+            // Clean up multiple spaces/newlines
+            .replace(/\s+/g, ' ')
             .trim();
 
-          return `${e.title} (relevance: ${(e.similarity * 100).toFixed(0)}%): ${cleanContent.substring(0, 800)}...`;
-        });
+          // Only include chunks with substantial clinical content (not just metadata)
+          if (cleanContent.length < 100) return null;
+
+          return `${e.title} (relevance: ${(e.similarity * 100).toFixed(0)}%): ${cleanContent.substring(0, 600)}...`;
+        })
+        .filter(Boolean); // Remove nulls
     }
 
     // For dose reduction, display the BRAND name (Amjevita) not generic (adalimumab)
