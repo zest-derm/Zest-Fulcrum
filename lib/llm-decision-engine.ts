@@ -102,7 +102,9 @@ function determineQuadrantAndStatus(
   // Stability: DLQI ≤1 (no effect on life) and ≥6 months stable
   const isStable = dlqiScore <= 1 && monthsStable >= 6;
 
-  // Formulary optimal: Tier 1 (PA status is administrative, not clinical quality indicator)
+  // Formulary optimal: Tier 1 (regardless of PA requirement for CURRENT therapy)
+  // Rationale: If patient is already on a Tier 1 drug with PA, they've cleared that hurdle.
+  //            PA requirement is only relevant when evaluating NEW drug switches/starts.
   // Tier 2-5 = suboptimal
   const isFormularyOptimal = currentFormularyDrug
     ? currentFormularyDrug.tier === 1
@@ -505,6 +507,8 @@ CLINICAL DECISION-MAKING GUIDELINES:
 
 PRIORITIZATION:
 - Always prefer Tier 1 > Tier 2 > Tier 3 > Tier 4 > Tier 5
+- Within same tier: Prefer drugs without Prior Auth requirement over those with PA (for NEW switches only)
+- Note: PA requirement does NOT affect classification of current therapy (patient already cleared that hurdle)
 - Within same tier: Higher efficacy > Lower cost > Simpler dosing
 - For ${assessment.diagnosis}, consider drug class preferences from guidelines
 
