@@ -104,12 +104,15 @@ export default async function RecommendationsPage({ params }: PageProps) {
   const filterByDiagnosis = (drugs: any[], diagnosis: string) => {
     return drugs.filter(drug => {
       // If no indications specified, include it (for backward compatibility)
-      // Only filter OUT if indications are specified AND diagnosis not included
       if (!drug.fdaIndications || drug.fdaIndications.length === 0) {
-        return true; // Include drugs without FDA indications data
+        return true;
       }
-      // Check if the diagnosis is in the FDA indications list
-      return drug.fdaIndications.includes(diagnosis);
+      // Check if the diagnosis is in the FDA indications list (case-insensitive)
+      // Handle both "PSORIASIS" (enum) and "Psoriasis" (data) formats
+      const diagnosisLower = diagnosis.toLowerCase().replace(/_/g, ' ');
+      return drug.fdaIndications.some((indication: string) =>
+        indication.toLowerCase().replace(/_/g, ' ') === diagnosisLower
+      );
     });
   };
 

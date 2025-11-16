@@ -309,8 +309,12 @@ function filterByDiagnosis(
     if (!drug.fdaIndications || drug.fdaIndications.length === 0) {
       return true;
     }
-    // Check if the diagnosis is in the FDA indications list
-    return drug.fdaIndications.includes(diagnosis);
+    // Check if the diagnosis is in the FDA indications list (case-insensitive)
+    // Handle both "PSORIASIS" (enum) and "Psoriasis" (data) formats
+    const diagnosisLower = diagnosis.toLowerCase().replace(/_/g, ' ');
+    return drug.fdaIndications.some(indication =>
+      indication.toLowerCase().replace(/_/g, ' ') === diagnosisLower
+    );
   });
 }
 
