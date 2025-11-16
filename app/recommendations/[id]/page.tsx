@@ -396,6 +396,9 @@ export default async function RecommendationsPage({ params }: PageProps) {
                       Tier
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Prior Auth
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Restrictions
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -435,6 +438,17 @@ export default async function RecommendationsPage({ params }: PageProps) {
                         }`}>
                           Tier {drug.tier}{drug.tier === 5 ? ' (Not Covered)' : ''}
                         </span>
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm">
+                        {drug.requiresPA === 'Yes' ? (
+                          <span className="px-2 py-1 rounded bg-amber-100 text-amber-800 text-xs font-medium">
+                            Yes
+                          </span>
+                        ) : drug.requiresPA === 'No' ? (
+                          <span className="text-gray-500 text-xs">No</span>
+                        ) : (
+                          <span className="text-gray-400 text-xs">{drug.requiresPA || '-'}</span>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-600">
                         {drug.restrictions || '-'}
