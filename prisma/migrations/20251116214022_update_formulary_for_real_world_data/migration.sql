@@ -1,10 +1,9 @@
 -- AlterTable FormularyDrug: Add new fields for real-world formulary data
-ALTER TABLE "FormularyDrug" ADD COLUMN "formulation" TEXT;
-ALTER TABLE "FormularyDrug" ADD COLUMN "strength" TEXT;
-ALTER TABLE "FormularyDrug" ADD COLUMN "restrictions" TEXT;
-ALTER TABLE "FormularyDrug" ADD COLUMN "quantityLimit" TEXT;
-ALTER TABLE "FormularyDrug" ADD COLUMN "fdaIndications" TEXT[] DEFAULT ARRAY[]::TEXT[];
-ALTER TABLE "FormularyDrug" ADD COLUMN "ndcCode" TEXT;
+ALTER TABLE "FormularyDrug" ADD COLUMN IF NOT EXISTS "formulation" TEXT;
+ALTER TABLE "FormularyDrug" ADD COLUMN IF NOT EXISTS "strength" TEXT;
+ALTER TABLE "FormularyDrug" ADD COLUMN IF NOT EXISTS "restrictions" TEXT;
+ALTER TABLE "FormularyDrug" ADD COLUMN IF NOT EXISTS "quantityLimit" TEXT;
+ALTER TABLE "FormularyDrug" ADD COLUMN IF NOT EXISTS "ndcCode" TEXT;
 
 -- AlterTable FormularyDrug: Change drugClass from enum to text
 -- First, convert existing enum values to text
@@ -22,12 +21,14 @@ ALTER TABLE "FormularyDrug" DROP COLUMN IF EXISTS "memberCopayT1";
 ALTER TABLE "FormularyDrug" DROP COLUMN IF EXISTS "memberCopayT2";
 ALTER TABLE "FormularyDrug" DROP COLUMN IF EXISTS "memberCopayT3";
 
--- AlterTable FormularyDrug: Rename approvedIndications to fdaIndications if needed
--- (Skip if column doesn't exist or already named correctly)
+-- AlterTable FormularyDrug: Handle fdaIndications column
+-- If approvedIndications exists, rename it. Otherwise, create fdaIndications.
 DO $$
 BEGIN
   IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='FormularyDrug' AND column_name='approvedIndications') THEN
     ALTER TABLE "FormularyDrug" RENAME COLUMN "approvedIndications" TO "fdaIndications";
+  ELSIF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='FormularyDrug' AND column_name='fdaIndications') THEN
+    ALTER TABLE "FormularyDrug" ADD COLUMN "fdaIndications" TEXT[] DEFAULT ARRAY[]::TEXT[];
   END IF;
 END $$;
 
