@@ -663,17 +663,36 @@ export async function generateLLMRecommendations(
   console.log(`\nLooking for current biologic: "${currentBiologic?.drugName}"`);
   console.log(`Normalized to generic: "${genericDrugName}"`);
 
-  // Find current drug in formulary (match by brand name OR generic name)
+  // Find current drug in formulary (BRAND NAME FIRST, then generic fallback)
+  // CRITICAL: Must prioritize exact brand match to avoid Humira matching to Amjevita
   const currentFormularyDrug = currentBiologic
-    ? patientWithFormulary.plan.formularyDrugs.find(drug => {
-        const brandMatch = drug.drugName.toLowerCase() === currentBiologic.drugName.toLowerCase();
-        const genericMatch = genericDrugName && (
-          drug.genericName.toLowerCase() === genericDrugName.toLowerCase() ||
-          drug.genericName.toLowerCase().startsWith(genericDrugName.toLowerCase() + '-') // biosimilar suffix
+    ? (() => {
+        // Step 1: Try exact brand name match first
+        const brandMatch = patientWithFormulary.plan.formularyDrugs.find(drug =>
+          drug.drugName.toLowerCase() === currentBiologic.drugName.toLowerCase()
         );
-        console.log(`  Checking ${drug.drugName}: brandMatch=${brandMatch}, genericMatch=${genericMatch}`);
-        return brandMatch || genericMatch;
-      }) ?? null
+
+        if (brandMatch) {
+          console.log(`  ✓ Found EXACT brand match: ${brandMatch.drugName}`);
+          return brandMatch;
+        }
+
+        // Step 2: Fall back to generic name match (for biosimilars)
+        if (genericDrugName) {
+          const genericMatch = patientWithFormulary.plan.formularyDrugs.find(drug =>
+            drug.genericName.toLowerCase() === genericDrugName.toLowerCase() ||
+            drug.genericName.toLowerCase().startsWith(genericDrugName.toLowerCase() + '-')
+          );
+
+          if (genericMatch) {
+            console.log(`  ✓ Found generic match: ${genericMatch.drugName} (generic: ${genericMatch.genericName})`);
+            return genericMatch;
+          }
+        }
+
+        console.log(`  ✗ No match found for ${currentBiologic.drugName}`);
+        return null;
+      })()
     : null;
 
   console.log(`Found current drug in formulary:`, currentFormularyDrug ? `YES - ${currentFormularyDrug.drugName} Tier ${currentFormularyDrug.tier}` : 'NO');
