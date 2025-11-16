@@ -158,44 +158,57 @@ async function handleClaimsUpload(csvText: string, fileName: string, datasetLabe
     },
   });
 
-  // Group by patient and insert claims
-  const claimsByPatient = rows.reduce((acc, claim) => {
-    if (!acc[claim.patientId]) acc[claim.patientId] = [];
-    acc[claim.patientId].push(claim);
-    return acc;
-  }, {} as Record<string, any[]>);
-
   let successCount = 0;
   let failCount = 0;
 
-  for (const [patientId, claimsData] of Object.entries(claimsByPatient)) {
-    const claims = claimsData as any[];
+  for (const claimData of rows) {
     try {
-      // Find patient by external ID
-      const patient = await prisma.patient.findFirst({
-        where: { externalId: patientId },
-      });
+      // Find patient by either pharmacyInsuranceId or externalId
+      let patient;
+      if (claimData.pharmacyInsuranceId) {
+        patient = await prisma.patient.findFirst({
+          where: { pharmacyInsuranceId: claimData.pharmacyInsuranceId },
+        });
+      } else if (claimData.patientId) {
+        patient = await prisma.patient.findFirst({
+          where: { externalId: claimData.patientId },
+        });
+      }
 
       if (!patient) {
-        failCount += claims.length;
-        errors.push({ row: 0, error: `Patient ${patientId} not found` });
+        failCount++;
+        const identifier = claimData.pharmacyInsuranceId || claimData.patientId || 'unknown';
+        errors.push({ row: 0, error: `Patient ${identifier} not found` });
         continue;
       }
 
-      // Insert new claims with uploadLogId (do NOT delete existing)
-      await prisma.pharmacyClaim.createMany({
-        data: claims.map(claim => ({
-          ...claim,
-          patientId: patient.id,
-          uploadLogId: uploadLog.id,
-        })),
-        skipDuplicates: true,
+      // Prepare claim data
+      const claimToInsert: any = {
+        patientId: patient.id,
+        fillDate: claimData.fillDate,
+        uploadLogId: uploadLog.id,
+      };
+
+      // Add optional fields
+      if (claimData.drugName) claimToInsert.drugName = claimData.drugName;
+      if (claimData.ndcCode) claimToInsert.ndcCode = claimData.ndcCode;
+      if (claimData.daysSupply !== undefined) claimToInsert.daysSupply = claimData.daysSupply;
+      if (claimData.quantity !== undefined) claimToInsert.quantity = claimData.quantity;
+      if (claimData.diagnosisCode) claimToInsert.diagnosisCode = claimData.diagnosisCode;
+      if (claimData.outOfPocket !== undefined) claimToInsert.outOfPocket = claimData.outOfPocket;
+      if (claimData.planPaid !== undefined) claimToInsert.planPaid = claimData.planPaid;
+      if (claimData.trueDrugCost !== undefined) claimToInsert.trueDrugCost = claimData.trueDrugCost;
+
+      // Insert claim
+      await prisma.pharmacyClaim.create({
+        data: claimToInsert,
       });
 
-      successCount += claims.length;
+      successCount++;
     } catch (error: any) {
-      failCount += claims.length;
-      errors.push({ row: 0, error: `Failed to import claims for patient ${patientId}: ${error.message}` });
+      failCount++;
+      const identifier = claimData.pharmacyInsuranceId || claimData.patientId || 'unknown';
+      errors.push({ row: 0, error: `Failed to import claim for patient ${identifier}: ${error.message}` });
     }
   }
 
@@ -271,32 +284,58 @@ async function handleEligibilityUpload(csvText: string, fileName: string) {
 
   for (const row of rows) {
     try {
-      const planId = planNameToIdMap[row.planName];
+      // Determine plan ID (if plan name is provided)
+      let planId = null;
+      if (row.planName) {
+        planId = planNameToIdMap[row.planName];
+        if (!planId) {
+          throw new Error(`Plan ID not found for plan name: ${row.planName}`);
+        }
+      }
 
-      if (!planId) {
-        throw new Error(`Plan ID not found for plan name: ${row.planName}`);
+      // Prepare patient data
+      const patientData: any = {
+        firstName: row.firstName,
+        lastName: row.lastName,
+        dateOfBirth: row.dateOfBirth,
+      };
+
+      // Add optional fields
+      if (row.externalId) patientData.externalId = row.externalId;
+      if (row.pharmacyInsuranceId) patientData.pharmacyInsuranceId = row.pharmacyInsuranceId;
+      if (planId) patientData.planId = planId;
+      if (row.planName) patientData.formularyPlanName = row.planName;
+      if (row.streetAddress) patientData.streetAddress = row.streetAddress;
+      if (row.city) patientData.city = row.city;
+      if (row.state) patientData.state = row.state;
+      if (row.employer) patientData.employer = row.employer;
+      if (row.email) patientData.email = row.email;
+      if (row.phone) patientData.phone = row.phone;
+      if (row.eligibilityStartDate) patientData.eligibilityStartDate = row.eligibilityStartDate;
+      if (row.eligibilityEndDate) patientData.eligibilityEndDate = row.eligibilityEndDate;
+      if (row.costDesignation) patientData.costDesignation = row.costDesignation;
+      if (row.benchmarkCost) patientData.benchmarkCost = row.benchmarkCost;
+
+      // Determine unique identifier for upsert
+      let whereClause: any;
+      if (row.pharmacyInsuranceId) {
+        whereClause = { pharmacyInsuranceId: row.pharmacyInsuranceId };
+      } else if (row.externalId) {
+        whereClause = { externalId: row.externalId };
+      } else {
+        throw new Error('Patient must have either externalId or pharmacyInsuranceId');
       }
 
       await prisma.patient.upsert({
-        where: { externalId: row.externalId },
-        update: {
-          firstName: row.firstName,
-          lastName: row.lastName,
-          dateOfBirth: row.dateOfBirth,
-          planId,
-        },
-        create: {
-          externalId: row.externalId,
-          firstName: row.firstName,
-          lastName: row.lastName,
-          dateOfBirth: row.dateOfBirth,
-          planId,
-        },
+        where: whereClause,
+        update: patientData,
+        create: patientData,
       });
       successCount++;
     } catch (error: any) {
       failCount++;
-      errors.push({ row: 0, error: `Failed to import patient ${row.externalId}: ${error.message}` });
+      const patientIdentifier = row.pharmacyInsuranceId || row.externalId || 'unknown';
+      errors.push({ row: 0, error: `Failed to import patient ${patientIdentifier}: ${error.message}` });
     }
   }
 
