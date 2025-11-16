@@ -90,18 +90,36 @@ export default function KnowledgePage() {
         body: formData,
       });
 
-      const data = await res.json();
+      // Handle timeout (504) or other non-JSON responses
+      if (!res.ok && res.status === 504) {
+        // Gateway timeout - processing may have completed on backend
+        alert(`⚠️ Upload timed out, but processing may have completed in the background.\n\nRefreshing to check for new findings...`);
+        await loadData();
+        return;
+      }
+
+      let data;
+      try {
+        data = await res.json();
+      } catch (jsonError) {
+        // JSON parse error (likely from timeout or network issue)
+        console.error('Failed to parse response:', jsonError);
+        alert(`⚠️ Upload response was incomplete (network timeout).\n\nRefreshing to check if findings were extracted...`);
+        await loadData();
+        return;
+      }
 
       if (data.success) {
         alert(`✅ Extracted ${data.totalFindings} findings from ${data.filesProcessed} papers!\n\n⚠️ Review findings before using in production.`);
-        loadData();
       } else {
         alert('Error uploading: ' + data.error);
       }
     } catch (error) {
       console.error('Error:', error);
-      alert('Error uploading files');
+      alert(`⚠️ Upload error: ${error}\n\nRefreshing to check if any findings were extracted...`);
     } finally {
+      // Always refresh data to show any findings that may have been extracted
+      await loadData();
       setUploading(false);
       // Reset file input
       e.target.value = '';
