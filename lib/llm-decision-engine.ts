@@ -57,7 +57,7 @@ interface LLMRecommendation {
  * These patients should continue current therapy, not optimize yet
  */
 function isStableShortDuration(dlqiScore: number, monthsStable: number): boolean {
-  return dlqiScore <= 1 && monthsStable < 6;
+  return dlqiScore <= 4 && monthsStable < 6;
 }
 
 /**
@@ -99,8 +99,8 @@ function determineQuadrantAndStatus(
     };
   }
 
-  // Stability: DLQI ≤1 (no effect on life) and ≥6 months stable
-  const isStable = dlqiScore <= 1 && monthsStable >= 6;
+  // Stability: DLQI ≤4 (minimal to mild effect on life) and ≥6 months stable
+  const isStable = dlqiScore <= 4 && monthsStable >= 6;
 
   // Formulary optimal: Tier 1 (regardless of PA requirement for CURRENT therapy)
   // Rationale: If patient is already on a Tier 1 drug with PA, they've cleared that hurdle.
@@ -151,7 +151,7 @@ Formulary Status:
 
 The patient has been classified as: ${quadrant}
 - not_on_biologic: Patient needs biologic initiation → Recommend best Tier 1 option
-- stable_short_duration: Patient is stable (DLQI ≤1) but for <6 months → Continue current therapy, re-evaluate after sufficient time
+- stable_short_duration: Patient is stable (DLQI ≤4) but for <6 months → Continue current therapy, re-evaluate after sufficient time
 - stable_optimal: Stable + Tier 1 → Consider dose reduction OR within-tier optimization
 - stable_suboptimal: Stable + Tier 2-5 → MUST recommend switch to Tier 1
 - unstable_optimal: Unstable + Tier 1 → Consider different Tier 1 option or optimize current
@@ -504,8 +504,8 @@ CLINICAL DECISION-MAKING GUIDELINES:
    - Lowest cost within Tier 1
    - Generate 2-3 Tier 1 options if available
 
-2. **stable_short_duration** (DLQI ≤1 but <6 months stable):
-   - PRIMARY: CONTINUE_CURRENT - patient has excellent control but insufficient duration
+2. **stable_short_duration** (DLQI ≤4 but <6 months stable):
+   - PRIMARY: CONTINUE_CURRENT - patient has good control but insufficient duration
    - Calculate months needed to reach 6 months total: ${6 - assessment.monthsStable} more months
    - OPTION 2 & 3: Mention future options to consider once 6 months stability is achieved (formulary switches or dose reduction as appropriate)
    - Rationale: Premature optimization risks disrupting newly achieved stability
@@ -536,13 +536,37 @@ CLINICAL DECISION-MAKING GUIDELINES:
       - Reduce dose/extend interval of current drug (cite RAG evidence)
       - Example: If only 2 unique Tier 1 drugs → Rec 1: Switch to Tier 1 drug A, Rec 2: Switch to Tier 1 drug B, Rec 3: Dose reduce current drug
 
-   c. **If NO Tier 1 options** (e.g., all contraindicated):
-      - DO NOT recommend dose reduction as primary strategy
-      - Switch to Tier 2 or Tier 3 alternatives with DIFFERENT mechanisms (respect contraindications)
-      - Tier 2: Recommend other Tier 2 drugs with different mechanisms
-      - Tier 3: Recommend Tier 2 drugs (upgrade) or stay at Tier 3 with different mechanism
-      - Example: Patient on Tier 2 IL-17, TNF contraindicated → Recommend Tier 3 IL-23 inhibitors or oral options
-      - Focus on mechanism switching for clinical benefit, not just tier optimization
+   c. **If NO Tier 1 options available** (e.g., all contraindicated or already being used):
+      Strategy depends on patient stability AND whether better alternatives exist in same/next tiers:
+
+      **For STABLE patients (DLQI ≤4):**
+      - PRIMARY: Dose reduction (patient stable, reduce exposure/cost)
+      - SECONDARY: If more efficacious alternatives exist in same/next tier, recommend those
+      - Prioritize drugs with SUPERIOR EFFICACY over lateral tier moves
+      - Example 1: Tier 2 IL-17, TNF contraindicated, stable, superior IL-23 available →
+        * Rec 1: Dose reduce current IL-17 (monthly → every 6-8 weeks)
+        * Rec 2: Switch to IL-23 inhibitor (Tier 3, superior efficacy)
+        * Rec 3: Switch to oral PDE4 (Tier 3, alternative)
+      - Example 2: Tier 2, stable, no better alternatives in Tier 2/3 →
+        * Rec 1: Dose reduce current (primary strategy when no upgrades available)
+        * Rec 2: Dose reduce with different interval
+        * Rec 3: CONTINUE_CURRENT at standard dose (option if patient declines reduction)
+
+      **For UNSTABLE patients (DLQI >4):**
+      - NEVER dose reduce (patient needs better control, not less medication)
+      - Recommend MOST EFFICACIOUS drugs in same or next available tier
+      - Prioritize mechanism switching for clinical benefit (e.g., IL-17 → IL-23)
+      - Within same tier: Recommend drugs with proven superior efficacy
+      - Example: Tier 2 IL-17, TNF contraindicated, unstable, IL-23 more efficacious →
+        * Rec 1: Switch to IL-23 inhibitor (Tier 3, best efficacy for ${assessment.diagnosis})
+        * Rec 2: Switch to different IL-23 or oral option (Tier 2/3)
+        * Rec 3: Switch to alternative mechanism (e.g., PDE4, TYK2)
+
+      **Efficacy Prioritization:**
+      - IL-23 inhibitors (Risankizumab, Guselkumab) typically have superior efficacy for psoriasis
+      - IL-17 inhibitors (Secukinumab, Ixekizumab) good second-line
+      - TNF inhibitors effective but often lower efficacy than IL-23/IL-17
+      - Oral agents (Apremilast, Deucravacitinib) for moderate disease or biologic-averse patients
 
    d. **Tertiary: Next Best Tier** (If still <3 recommendations):
       - Recommend next best available tier drugs with different mechanisms
@@ -560,25 +584,36 @@ CLINICAL DECISION-MAKING GUIDELINES:
 
 6. **unstable_suboptimal** (Tier 2-5, unstable):
 
-   ⚠️ CRITICAL: NEVER recommend dose reduction for unstable patients (DLQI >1)
+   ⚠️ CRITICAL: NEVER recommend dose reduction for unstable patients (DLQI >4)
+
+   Strategy: Recommend MOST EFFICACIOUS drugs in best available tier
 
    a. **If Tier 1 options available**:
-      - Switch to Tier 1 drug with best efficacy for ${assessment.diagnosis} (cite evidence)
+      - Switch to Tier 1 drugs with BEST EFFICACY for ${assessment.diagnosis}
       - Prefer different mechanism if current class failing (e.g., TNF → IL-17/IL-23)
-      - Generate 3 Tier 1 switch recommendations
+      - Generate 3 Tier 1 switch recommendations ranked by efficacy
+      - Within Tier 1: IL-17 biosimilars > TNF biosimilars for psoriasis
 
    b. **If NO Tier 1 options available** (e.g., all contraindicated):
       - DO NOT output placeholder text like "No Tier 1 options available"
-      - Switch to Tier 2 or Tier 3 drugs with DIFFERENT mechanisms
-      - Prioritize IL-23 inhibitors (Risankizumab, Guselkumab) for superior efficacy
-      - Consider oral options (Apremilast, Deucravacitinib) as alternatives
-      - Example: If on IL-17 inhibitor (Tier 2) → Switch to IL-23 inhibitor (Tier 3)
-      - Generate 3 switch recommendations from available Tier 2/3 options
+      - Recommend MOST EFFICACIOUS drugs from Tier 2/3 (prioritize efficacy over tier)
+      - Efficacy hierarchy for psoriasis: IL-23 > IL-17 > TNF > Oral agents
+      - Example: Patient on Tier 2 IL-17 (Cosentyx), TNF contraindicated, unstable →
+        * Rec 1: Skyrizi (IL-23, Tier 3) - HIGHEST efficacy for psoriasis
+        * Rec 2: Tremfya (IL-23, Tier 5 if available) - HIGHEST efficacy even if higher tier
+        * Rec 3: Otezla (PDE4, Tier 3) - Oral alternative
+      - Focus on CLINICAL BENEFIT (efficacy) not just tier optimization
+      - Mechanism switching for therapeutic escalation
 
-   c. **For Tier 4-5**:
-      - URGENT switch to lower tiers (Tier 1 if available, otherwise Tier 2/3)
-      - Patient paying very high cost for suboptimal control
+   c. **For Tier 4-5 (unstable)**:
+      - URGENT switch to lower tiers OR more efficacious drugs
+      - Tier 4 Humira (TNF) → Switch to Tier 2/3 IL-23 (better efficacy + lower cost)
+      - Patient needs better control AND lower cost
       - NEVER dose reduce unstable patients regardless of tier
+
+   **Key Principle**: For UNSTABLE patients, EFFICACY is paramount. Recommend the most
+   effective drugs available, even if they're in a higher tier than current, as long as
+   they're in the formulary and not contraindicated.
 
 PRIORITIZATION:
 - Always prefer Tier 1 > Tier 2 > Tier 3 > Tier 4 > Tier 5
@@ -905,8 +940,8 @@ export async function generateLLMRecommendations(
       return false;
     }
 
-    // Filter out dose reduction for unstable patients (DLQI > 1)
-    if (rec.type === 'DOSE_REDUCTION' && assessment.dlqiScore > 1) {
+    // Filter out dose reduction for unstable patients (DLQI > 4)
+    if (rec.type === 'DOSE_REDUCTION' && assessment.dlqiScore > 4) {
       console.log(`  ⚠️  Removing dose reduction for unstable patient (DLQI: ${assessment.dlqiScore})`);
       return false;
     }
