@@ -103,12 +103,12 @@ export function calculateAssumedCosts(
 
 /**
  * Determine if patient is stable based on DLQI and duration
- * DLQI 0-1 = no effect on patient's life (truly stable)
+ * DLQI 0-4 = minimal to mild effect on patient's life (stable)
  * Patient must be stable for >= 6 months before considering therapy optimization
  */
 export function determineStability(dlqiScore: number, monthsStable: number): boolean {
-  // Stable if DLQI <= 1 (no effect on life) and stable for >= 6 months
-  return dlqiScore <= 1 && monthsStable >= 6;
+  // Stable if DLQI <= 4 (minimal to mild effect on life) and stable for >= 6 months
+  return dlqiScore <= 4 && monthsStable >= 6;
 }
 
 /**
@@ -116,7 +116,7 @@ export function determineStability(dlqiScore: number, monthsStable: number): boo
  * These patients should continue current therapy, not optimize yet
  */
 export function isStableShortDuration(dlqiScore: number, monthsStable: number): boolean {
-  return dlqiScore <= 1 && monthsStable < 6;
+  return dlqiScore <= 4 && monthsStable < 6;
 }
 
 /**

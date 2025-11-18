@@ -57,7 +57,7 @@ interface LLMRecommendation {
  * These patients should continue current therapy, not optimize yet
  */
 function isStableShortDuration(dlqiScore: number, monthsStable: number): boolean {
-  return dlqiScore <= 1 && monthsStable < 6;
+  return dlqiScore <= 4 && monthsStable < 6;
 }
 
 /**
@@ -99,8 +99,8 @@ function determineQuadrantAndStatus(
     };
   }
 
-  // Stability: DLQI ≤1 (no effect on life) and ≥6 months stable
-  const isStable = dlqiScore <= 1 && monthsStable >= 6;
+  // Stability: DLQI ≤4 (minimal to mild effect on life) and ≥6 months stable
+  const isStable = dlqiScore <= 4 && monthsStable >= 6;
 
   // Formulary optimal: Tier 1 (regardless of PA requirement for CURRENT therapy)
   // Rationale: If patient is already on a Tier 1 drug with PA, they've cleared that hurdle.
@@ -151,7 +151,7 @@ Formulary Status:
 
 The patient has been classified as: ${quadrant}
 - not_on_biologic: Patient needs biologic initiation → Recommend best Tier 1 option
-- stable_short_duration: Patient is stable (DLQI ≤1) but for <6 months → Continue current therapy, re-evaluate after sufficient time
+- stable_short_duration: Patient is stable (DLQI ≤4) but for <6 months → Continue current therapy, re-evaluate after sufficient time
 - stable_optimal: Stable + Tier 1 → Consider dose reduction OR within-tier optimization
 - stable_suboptimal: Stable + Tier 2-5 → MUST recommend switch to Tier 1
 - unstable_optimal: Unstable + Tier 1 → Consider different Tier 1 option or optimize current
@@ -504,8 +504,8 @@ CLINICAL DECISION-MAKING GUIDELINES:
    - Lowest cost within Tier 1
    - Generate 2-3 Tier 1 options if available
 
-2. **stable_short_duration** (DLQI ≤1 but <6 months stable):
-   - PRIMARY: CONTINUE_CURRENT - patient has excellent control but insufficient duration
+2. **stable_short_duration** (DLQI ≤4 but <6 months stable):
+   - PRIMARY: CONTINUE_CURRENT - patient has good control but insufficient duration
    - Calculate months needed to reach 6 months total: ${6 - assessment.monthsStable} more months
    - OPTION 2 & 3: Mention future options to consider once 6 months stability is achieved (formulary switches or dose reduction as appropriate)
    - Rationale: Premature optimization risks disrupting newly achieved stability
@@ -539,7 +539,7 @@ CLINICAL DECISION-MAKING GUIDELINES:
    c. **If NO Tier 1 options available** (e.g., all contraindicated or already being used):
       Strategy depends on patient stability AND whether better alternatives exist in same/next tiers:
 
-      **For STABLE patients (DLQI ≤1):**
+      **For STABLE patients (DLQI ≤4):**
       - PRIMARY: Dose reduction (patient stable, reduce exposure/cost)
       - SECONDARY: If more efficacious alternatives exist in same/next tier, recommend those
       - Prioritize drugs with SUPERIOR EFFICACY over lateral tier moves
@@ -552,7 +552,7 @@ CLINICAL DECISION-MAKING GUIDELINES:
         * Rec 2: Dose reduce with different interval
         * Rec 3: CONTINUE_CURRENT at standard dose (option if patient declines reduction)
 
-      **For UNSTABLE patients (DLQI >1):**
+      **For UNSTABLE patients (DLQI >4):**
       - NEVER dose reduce (patient needs better control, not less medication)
       - Recommend MOST EFFICACIOUS drugs in same or next available tier
       - Prioritize mechanism switching for clinical benefit (e.g., IL-17 → IL-23)
@@ -584,7 +584,7 @@ CLINICAL DECISION-MAKING GUIDELINES:
 
 6. **unstable_suboptimal** (Tier 2-5, unstable):
 
-   ⚠️ CRITICAL: NEVER recommend dose reduction for unstable patients (DLQI >1)
+   ⚠️ CRITICAL: NEVER recommend dose reduction for unstable patients (DLQI >4)
 
    Strategy: Recommend MOST EFFICACIOUS drugs in best available tier
 
@@ -940,8 +940,8 @@ export async function generateLLMRecommendations(
       return false;
     }
 
-    // Filter out dose reduction for unstable patients (DLQI > 1)
-    if (rec.type === 'DOSE_REDUCTION' && assessment.dlqiScore > 1) {
+    // Filter out dose reduction for unstable patients (DLQI > 4)
+    if (rec.type === 'DOSE_REDUCTION' && assessment.dlqiScore > 4) {
       console.log(`  ⚠️  Removing dose reduction for unstable patient (DLQI: ${assessment.dlqiScore})`);
       return false;
     }
