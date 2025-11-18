@@ -336,19 +336,32 @@ function filterContraindicated(
   const contraindicationTypes = contraindications.map(c => c.type);
 
   return drugs.filter(drug => {
+    // Normalize drug class for comparison (handle both "TNF Inhibitor" and "TNF_INHIBITOR")
+    const normalizedDrugClass = drug.drugClass?.toUpperCase().replace(/\s+/g, '_') || '';
+
     // TNF inhibitors contraindicated in CHF and MS
-    if (drug.drugClass === 'TNF_INHIBITOR') {
-      if (contraindicationTypes.includes('HEART_FAILURE')) return false;
-      if (contraindicationTypes.includes('MULTIPLE_SCLEROSIS')) return false;
+    if (normalizedDrugClass.includes('TNF')) {
+      if (contraindicationTypes.includes('HEART_FAILURE')) {
+        console.log(`  ⚠️  Excluding ${drug.drugName} (TNF inhibitor) due to HEART_FAILURE contraindication`);
+        return false;
+      }
+      if (contraindicationTypes.includes('MULTIPLE_SCLEROSIS')) {
+        console.log(`  ⚠️  Excluding ${drug.drugName} (TNF inhibitor) due to MULTIPLE_SCLEROSIS contraindication`);
+        return false;
+      }
     }
 
     // IL-17 inhibitors can worsen IBD
-    if (drug.drugClass === 'IL17_INHIBITOR') {
-      if (contraindicationTypes.includes('INFLAMMATORY_BOWEL_DISEASE')) return false;
+    if (normalizedDrugClass.includes('IL17') || normalizedDrugClass.includes('IL-17')) {
+      if (contraindicationTypes.includes('INFLAMMATORY_BOWEL_DISEASE')) {
+        console.log(`  ⚠️  Excluding ${drug.drugName} (IL-17 inhibitor) due to IBD contraindication`);
+        return false;
+      }
     }
 
     // All biologics contraindicated in active infection
     if (contraindicationTypes.includes('ACTIVE_INFECTION')) {
+      console.log(`  ⚠️  Excluding ${drug.drugName} due to ACTIVE_INFECTION contraindication`);
       return false;
     }
 
@@ -824,7 +837,7 @@ export async function generateLLMRecommendations(
   });
 
   // Step 4: LLM Recommendations
-  const llmRecs = await getLLMRecommendationSuggestions(
+  const rawLlmRecs = await getLLMRecommendationSuggestions(
     assessment,
     genericDrugName,
     triage,
@@ -833,6 +846,24 @@ export async function generateLLMRecommendations(
     currentFormularyDrug || null,
     patient.contraindications
   );
+
+  // Deduplicate recommendations by drug name (in case LLM generated same drug twice)
+  // Keep first occurrence only
+  const seenDrugs = new Set<string>();
+  const llmRecs = rawLlmRecs.filter(rec => {
+    if (rec.type === 'DOSE_REDUCTION' || rec.type === 'CONTINUE_CURRENT') {
+      return true; // Always include dose reduction and continue current
+    }
+    const drugKey = rec.drugName?.toLowerCase();
+    if (!drugKey || seenDrugs.has(drugKey)) {
+      console.log(`  ℹ️  Removing duplicate recommendation for: ${rec.drugName}`);
+      return false;
+    }
+    seenDrugs.add(drugKey);
+    return true;
+  });
+
+  console.log(`LLM generated ${rawLlmRecs.length} recommendations, kept ${llmRecs.length} after deduplication`);
 
   // Step 5: Add cost calculations and retrieve drug-specific evidence for dose reduction
   // TRUE RAG: Only retrieve evidence for DOSE_REDUCTION (needs literature to convince clinicians)
