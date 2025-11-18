@@ -375,20 +375,30 @@ async function getLLMRecommendationSuggestions(
   // Get current brand name (not generic) to properly exclude from switch options
   const currentBrandName = currentFormularyDrug?.drugName || currentDrug;
 
-  // Show top 10 formulary options, prioritizing lower tiers
-  // CRITICAL: Exclude the current brand drug (not just generic) to avoid recommending "switch to same drug"
-  const formularyText = formularyOptions
-    .filter(d => {
-      // Exclude current brand drug
-      if (currentBrandName && d.drugName.toLowerCase() === currentBrandName.toLowerCase()) {
-        return false;
-      }
-      // Exclude by generic name match too (belt and suspenders)
-      if (currentDrug && d.drugName.toLowerCase() === currentDrug.toLowerCase()) {
-        return false;
-      }
-      return true;
-    })
+  // Filter and deduplicate formulary options
+  // CRITICAL: Exclude the current brand drug AND deduplicate by generic name
+  // to avoid showing multiple formulations of the same drug to the LLM
+  const uniqueFormularyDrugs = new Map<string, FormularyDrug>();
+
+  formularyOptions.forEach(drug => {
+    // Exclude current brand drug
+    if (currentBrandName && drug.drugName.toLowerCase() === currentBrandName.toLowerCase()) {
+      return;
+    }
+    // Exclude by generic name match too (belt and suspenders)
+    if (currentDrug && drug.drugName.toLowerCase() === currentDrug.toLowerCase()) {
+      return;
+    }
+
+    // Deduplicate by generic name - keep first occurrence (usually most common formulation)
+    const genericKey = drug.genericName.toLowerCase();
+    if (!uniqueFormularyDrugs.has(genericKey)) {
+      uniqueFormularyDrugs.set(genericKey, drug);
+    }
+  });
+
+  // Show top 10 unique drugs, prioritizing lower tiers
+  const formularyText = Array.from(uniqueFormularyDrugs.values())
     .slice(0, 10)
     .map(d => `${d.drugName} (${d.drugClass}, Tier ${d.tier}, PA: ${d.requiresPA ? 'Yes' : 'No'}, Annual Cost: $${d.annualCostWAC})`)
     .join('\n');
@@ -396,6 +406,11 @@ async function getLLMRecommendationSuggestions(
   const evidenceText = evidence.length > 0
     ? evidence.join('\n\n')
     : 'No specific evidence retrieved from knowledge base.';
+
+  // Count unique Tier 1 options to help LLM decide whether to offer dose reduction
+  const tier1Count = Array.from(uniqueFormularyDrugs.values())
+    .filter(d => d.tier === 1)
+    .length;
 
   const prompt = `You are a clinical decision support AI for dermatology biologic optimization.
 
@@ -411,7 +426,7 @@ Patient Information:
 Current Formulary Status:
 ${currentFormularyDrug ? `Tier ${currentFormularyDrug.tier}, PA: ${currentFormularyDrug.requiresPA || 'Unknown'}, Annual Cost: $${currentFormularyDrug.annualCostWAC}` : 'Not on formulary'}
 
-Available Formulary Options:
+Available Formulary Options (${tier1Count} unique Tier 1 drugs available):
 ${formularyText}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -471,22 +486,23 @@ CLINICAL DECISION-MAKING GUIDELINES:
 
 4. **stable_suboptimal** - TIER-SPECIFIC STRATEGY (Tiers 2-5):
 
-   ALWAYS generate 3 recommendations ranked by priority:
+   ALWAYS generate exactly 3 unique recommendations. NEVER recommend the same drug twice.
 
    a. **Primary: Switch to Tier 1** (Recommendations 1-N):
-      - Recommend ALL available Tier 1 options for the diagnosis
+      - Recommend ALL unique Tier 1 drugs available (check the count above)
+      - Each Tier 1 drug should only be recommended ONCE
       - Prioritize biosimilars of current drug if available
       - Then same-class drugs (e.g., if on TNF inhibitor, recommend other TNF inhibitors in Tier 1)
       - Then cross-class if better efficacy
       - No RAG needed for switch rationale (formulary alignment is self-evident)
 
-   b. **Secondary: Dose Reduction** (If <3 Tier 1 options available):
+   b. **Secondary: Dose Reduction** (If <3 unique Tier 1 options available):
       - ONLY for Tier 2 or Tier 3 patients (NOT Tier 4-5)
       - Reduce dose/extend interval of current drug (cite RAG evidence)
-      - Example: If only 1 Tier 1 option available → Rec 1: Switch to Tier 1, Rec 2: Dose reduce current, Rec 3: Switch to best Tier 2
+      - Example: If only 2 unique Tier 1 drugs → Rec 1: Switch to Tier 1 drug A, Rec 2: Switch to Tier 1 drug B, Rec 3: Dose reduce current drug
 
    c. **Tertiary: Next Best Tier** (If still <3 recommendations):
-      - Recommend next best available tier (e.g., Tier 2 if no more Tier 1 options)
+      - Recommend next best available tier (e.g., Tier 2 if no more Tier 1 options and dose reduction not applicable)
       - Only if absolutely necessary to reach 3 total recommendations
 
    d. **Tier-Specific Notes**:
