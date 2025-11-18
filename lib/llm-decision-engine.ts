@@ -375,6 +375,7 @@ function filterContraindicated(
 async function getLLMRecommendationSuggestions(
   assessment: AssessmentInput,
   currentDrug: string | null,
+  currentBiologic: any | null,
   triage: TriageResult,
   evidence: string[],
   formularyOptions: FormularyDrug[],
@@ -387,6 +388,11 @@ async function getLLMRecommendationSuggestions(
 
   // Get current brand name (not generic) to properly exclude from switch options
   const currentBrandName = currentFormularyDrug?.drugName || currentDrug;
+
+  // Build current dosing information string
+  const currentDosingInfo = currentBiologic
+    ? `${currentBiologic.dose} ${currentBiologic.frequency}`
+    : 'Not specified';
 
   // Filter and deduplicate formulary options
   // CRITICAL: Exclude the current brand drug AND deduplicate by generic name
@@ -429,6 +435,7 @@ async function getLLMRecommendationSuggestions(
 
 Patient Information:
 - Current medication: ${currentBrandName || 'None (not on biologic)'}${currentDrug && currentDrug !== currentBrandName ? ` (generic: ${currentDrug})` : ''}
+- Current dosing: ${currentDosingInfo}
 - Diagnosis: ${assessment.diagnosis}
 - DLQI Score: ${assessment.dlqiScore}
 - Months stable: ${assessment.monthsStable}
@@ -455,6 +462,20 @@ CONTRAINDICATION RULES (CRITICAL - NEVER recommend contraindicated drugs):
 - IL-17 inhibitors (secukinumab, ixekizumab, brodalumab): Can worsen INFLAMMATORY_BOWEL_DISEASE
 - ALL biologics: CONTRAINDICATED if ACTIVE_INFECTION
 - Contraindicated drugs have been PRE-FILTERED from formulary options shown above
+
+DOSE REDUCTION RULES (CRITICAL - Must be TRUE reduction):
+⚠️ A dose reduction MUST extend the dosing interval beyond the current regimen:
+- Current: Every 2 weeks → Reduction: Every 3-4 weeks ✓
+- Current: Every 4 weeks (Monthly) → Reduction: Every 6-8 weeks ✓
+- Current: Every 8 weeks → Reduction: Every 12 weeks ✓
+- Current: Every 12 weeks → Reduction: Every 16 weeks ✓
+- NEVER recommend the same interval as current (e.g., "Monthly" → "Every 4 weeks" is NOT a reduction!)
+- Look at "Current dosing" above to see the exact current interval
+- Examples of PROPER dose reductions by drug:
+  * Adalimumab: 40mg every 2 weeks → 40mg every 3-4 weeks
+  * Secukinumab: 300mg monthly → 300mg every 6-8 weeks
+  * Ustekinumab: 45mg/90mg every 12 weeks → every 16 weeks
+  * Guselkumab/Risankizumab: Every 8 weeks → every 12 weeks
 
 CRITICAL TIER OPTIMIZATION RULES:
 ⚠️ **Tier 2, 3, 4, or 5 should ALMOST NEVER result in CONTINUE or just OPTIMIZE_CURRENT**
@@ -840,6 +861,7 @@ export async function generateLLMRecommendations(
   const rawLlmRecs = await getLLMRecommendationSuggestions(
     assessment,
     genericDrugName,
+    currentBiologic,
     triage,
     evidence,
     sortedFormularyDrugs,
