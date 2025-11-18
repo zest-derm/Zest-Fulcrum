@@ -537,12 +537,23 @@ CLINICAL DECISION-MAKING GUIDELINES:
       - Example: If only 2 unique Tier 1 drugs → Rec 1: Switch to Tier 1 drug A, Rec 2: Switch to Tier 1 drug B, Rec 3: Dose reduce current drug
 
    c. **If NO Tier 1 options** (e.g., all contraindicated):
-      - DO NOT recommend dose reduction as primary strategy
-      - Switch to Tier 2 or Tier 3 alternatives with DIFFERENT mechanisms (respect contraindications)
-      - Tier 2: Recommend other Tier 2 drugs with different mechanisms
-      - Tier 3: Recommend Tier 2 drugs (upgrade) or stay at Tier 3 with different mechanism
-      - Example: Patient on Tier 2 IL-17, TNF contraindicated → Recommend Tier 3 IL-23 inhibitors or oral options
-      - Focus on mechanism switching for clinical benefit, not just tier optimization
+      Strategy depends on stability:
+
+      **For STABLE patients (DLQI ≤1):**
+      - Recommend 2 Tier 2/3 alternatives with DIFFERENT mechanisms
+      - PLUS 1 dose reduction recommendation
+      - Example: Tier 2 IL-17, TNF contraindicated, stable →
+        * Rec 1: Switch to IL-23 inhibitor (Tier 3)
+        * Rec 2: Switch to oral PDE4 (Tier 3)
+        * Rec 3: Dose reduce current IL-17 (e.g., monthly → every 6-8 weeks)
+
+      **For UNSTABLE patients (DLQI >1):**
+      - Recommend 3 Tier 2/3 alternatives with different mechanisms
+      - NEVER dose reduce (patient needs better control, not less medication)
+      - Example: Tier 2 IL-17, TNF contraindicated, unstable →
+        * Rec 1: Switch to IL-23 inhibitor (Tier 3)
+        * Rec 2: Switch to oral PDE4 (Tier 3)
+        * Rec 3: Switch to different IL-17 or other mechanism
 
    d. **Tertiary: Next Best Tier** (If still <3 recommendations):
       - Recommend next best available tier drugs with different mechanisms
