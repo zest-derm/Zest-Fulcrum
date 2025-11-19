@@ -225,17 +225,61 @@ export const diagnosisCodes = {
   'L25.9': 'Unspecified contact dermatitis, unspecified cause',
 };
 
+// Helper function to normalize NDC segment (pad with leading zeros)
+function normalizeNdcSegment(segment: string, targetLength: number): string {
+  return segment.padStart(targetLength, '0');
+}
+
 // Helper function to find drug info by NDC code
 export function findDrugByNdc(ndcCode: string) {
-  // Normalize NDC code (remove dashes, handle different formats)
-  const normalizedNdc = ndcCode.replace(/[-\s]/g, '');
+  if (!ndcCode) return undefined;
 
-  return biologicNdcMappings.find(mapping => {
+  // NDC codes have 3 segments: Labeler-Product-Package
+  // Package codes can vary for same drug (different sizes), so match on first 2 segments
+
+  const cleanCode = ndcCode.trim();
+  const parts = cleanCode.split('-');
+
+  if (parts.length >= 2) {
+    // Normalize the NDC parts to standard 5-4-2 format for comparison
+    // Labeler: 5 digits, Product: 4 digits
+    const normalizedLabeler = normalizeNdcSegment(parts[0], 5);
+    const normalizedProduct = normalizeNdcSegment(parts[1], 4);
+    const searchPrefix = `${normalizedLabeler}${normalizedProduct}`;
+
+    // Find match by comparing normalized labeler + product codes
+    const match = biologicNdcMappings.find(mapping => {
+      const mappingParts = mapping.ndcCode.split('-');
+      if (mappingParts.length < 2) return false;
+
+      const mappingLabeler = normalizeNdcSegment(mappingParts[0], 5);
+      const mappingProduct = normalizeNdcSegment(mappingParts[1], 4);
+      const mappingPrefix = `${mappingLabeler}${mappingProduct}`;
+
+      return mappingPrefix === searchPrefix;
+    });
+
+    if (match) {
+      console.log(`✅ NDC Match: ${cleanCode} → ${match.drugName} (${match.genericName})`);
+      return match;
+    }
+  }
+
+  // Fallback: Try exact match after removing all non-alphanumeric characters
+  const normalizedNdc = cleanCode.replace(/[-\s]/g, '');
+
+  const exactMatch = biologicNdcMappings.find(mapping => {
     const normalizedMappingNdc = mapping.ndcCode.replace(/[-\s]/g, '');
-    return normalizedMappingNdc === normalizedNdc ||
-           normalizedMappingNdc.startsWith(normalizedNdc) ||
-           normalizedNdc.startsWith(normalizedMappingNdc);
+    return normalizedMappingNdc === normalizedNdc;
   });
+
+  if (exactMatch) {
+    console.log(`✅ NDC Exact Match: ${cleanCode} → ${exactMatch.drugName}`);
+    return exactMatch;
+  }
+
+  console.log(`❌ NDC Not Found: ${cleanCode} (no match in biologic mappings)`);
+  return undefined;
 }
 
 // Helper function to get diagnosis description
