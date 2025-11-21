@@ -477,3 +477,5 @@ async function handleKnowledgeUpload(file: File) {
     message: successCount > 0 ? `Successfully processed ${successCount} chunks from ${file.name}` : 'Failed to process file',
   });
 }
+
+export const dynamic = 'force-dynamic';

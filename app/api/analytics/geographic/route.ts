@@ -114,3 +114,5 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
+
+export const dynamic = 'force-dynamic';
