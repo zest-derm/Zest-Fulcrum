@@ -6,9 +6,16 @@ import OpenAI from 'openai';
 // For now, using a simplified text extraction approach
 // In production, add: import pdfParse from 'pdf-parse';
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+// Lazy initialization to avoid build-time errors when env vars aren't set
+let openaiClient: OpenAI | null = null;
+function getOpenAI(): OpenAI {
+  if (!openaiClient) {
+    openaiClient = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY,
+    });
+  }
+  return openaiClient;
+}
 
 interface ClinicalFinding {
   finding: string;
@@ -73,7 +80,7 @@ Return ONLY a JSON object with this structure:
 
 findingType options: DOSE_REDUCTION, INTERVAL_EXTENSION, EFFICACY, SAFETY, COST_EFFECTIVENESS, OTHER`;
 
-  const response = await openai.chat.completions.create({
+  const response = await getOpenAI().chat.completions.create({
     model: 'gpt-4o',
     messages: [{ role: 'user', content: prompt }],
     response_format: { type: 'json_object' },

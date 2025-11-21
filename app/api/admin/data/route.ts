@@ -299,3 +299,5 @@ async function handleViewDataset(type: string | null, id: string) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
+
+export const dynamic = 'force-dynamic';
