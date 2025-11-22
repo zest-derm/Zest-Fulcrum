@@ -114,6 +114,16 @@ export const BIOLOGICS_DATA: BiologicOption[] = [
     indications: ['PSORIASIS', 'PSORIATIC_ARTHRITIS'],
   },
   {
+    brand: 'Abrilada',
+    generic: 'adalimumab-afzb',
+    approvedDoses: ['40mg'],
+    standardFrequencies: [
+      { value: 'every-2-weeks', label: 'Every 2 weeks' },
+      { value: 'weekly', label: 'Weekly' },
+    ],
+    indications: ['PSORIASIS', 'PSORIATIC_ARTHRITIS'],
+  },
+  {
     brand: 'Enbrel',
     generic: 'etanercept',
     approvedDoses: ['25mg', '50mg'],
