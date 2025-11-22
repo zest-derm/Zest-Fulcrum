@@ -289,16 +289,21 @@ async function retrieveRelevantEvidenceFallback(
   }
 
   // Retrieve evidence for each query using dynamic similarity threshold
-  const evidenceResults = await Promise.all(
-    queries.map(query => searchKnowledge(query, {
-      minSimilarity: 0.65,  // Only include moderately relevant chunks
-      maxResults: 10         // Cap to avoid context overflow
-    }))
-  );
+  try {
+    const evidenceResults = await Promise.all(
+      queries.map(query => searchKnowledge(query, {
+        minSimilarity: 0.65,  // Only include moderately relevant chunks
+        maxResults: 10         // Cap to avoid context overflow
+      }))
+    );
 
-  // Flatten and extract content
-  const allEvidence = evidenceResults.flat();
-  return allEvidence.map(e => `${e.title}: ${e.content.substring(0, 500)}...`);
+    // Flatten and extract content
+    const allEvidence = evidenceResults.flat();
+    return allEvidence.map(e => `${e.title}: ${e.content.substring(0, 500)}...`);
+  } catch (error) {
+    console.error('RAG evidence retrieval failed (OpenAI embeddings may not be configured):', error);
+    return []; // Return empty evidence - LLM will work without RAG context
+  }
 }
 
 /**
@@ -981,75 +986,80 @@ export async function generateLLMRecommendations(
     // Uses dynamic similarity-based retrieval to ensure all relevant evidence is included
     let drugSpecificEvidence: string[] = [];
     if (rec.type === 'DOSE_REDUCTION' && rec.drugName) {
-      // Use generic drug name (adalimumab) for queries, not brand name (Amjevita)
-      // Papers in knowledge base reference generic names
-      const drugNameForSearch = genericDrugName || rec.drugName;
+      try {
+        // Use generic drug name (adalimumab) for queries, not brand name (Amjevita)
+        // Papers in knowledge base reference generic names
+        const drugNameForSearch = genericDrugName || rec.drugName;
 
-      const queries = [
-        `${drugNameForSearch} dose reduction interval extension ${assessment.diagnosis} stable patients`,
-        `${drugNameForSearch} extended dosing efficacy safety ${assessment.diagnosis}`,
-        `${drugNameForSearch} treatment optimization ${assessment.diagnosis} guidelines`,
-        `biologic dose reduction ${assessment.diagnosis} adalimumab etanercept ustekinumab`, // Broader query for general biologic dose reduction
-        `CONDOR trial dose reduction ${assessment.diagnosis}` // Specific trial name
-      ];
+        const queries = [
+          `${drugNameForSearch} dose reduction interval extension ${assessment.diagnosis} stable patients`,
+          `${drugNameForSearch} extended dosing efficacy safety ${assessment.diagnosis}`,
+          `${drugNameForSearch} treatment optimization ${assessment.diagnosis} guidelines`,
+          `biologic dose reduction ${assessment.diagnosis} adalimumab etanercept ustekinumab`, // Broader query for general biologic dose reduction
+          `CONDOR trial dose reduction ${assessment.diagnosis}` // Specific trial name
+        ];
 
-      // Use dynamic similarity threshold (0.65 = moderately relevant)
-      // This retrieves 0-10 chunks per query based on actual relevance
-      const evidenceResults = await Promise.all(
-        queries.map(query => searchKnowledge(query, {
-          minSimilarity: 0.65,  // Only include chunks with >65% similarity
-          maxResults: 10         // Cap at 10 to avoid overwhelming context
-        }))
-      );
+        // Use dynamic similarity threshold (0.65 = moderately relevant)
+        // This retrieves 0-10 chunks per query based on actual relevance
+        const evidenceResults = await Promise.all(
+          queries.map(query => searchKnowledge(query, {
+            minSimilarity: 0.65,  // Only include chunks with >65% similarity
+            maxResults: 10         // Cap at 10 to avoid overwhelming context
+          }))
+        );
 
-      // Flatten and format evidence with similarity scores for transparency
-      // IMPORTANT: Current chunks have quality issues (truncated sentences, metadata, references)
-      // This cleaning is a band-aid - PDFs should be re-parsed with semantic chunking for production
-      drugSpecificEvidence = evidenceResults
-        .flat()
-        .filter(e => {
-          // Filter out bibliography/reference entries (contain common reference patterns)
-          const content = e.content.toLowerCase();
-          if (content.includes('et al.') && content.match(/\d{4}/g)?.length > 3) return false; // Multiple years = likely references
-          if (content.match(/doi:|https?:\/\/|pmid:/gi)) return false; // DOIs, URLs, PMIDs
-          if (content.match(/\d+\(\d+\):\d+-\d+/)) return false; // Journal citation format like "2016;96(2):251–252"
-          return true;
-        })
-        .map(e => {
-          // Clean content: remove common PDF metadata patterns
-          let cleanContent = e.content
-            // Remove everything before Abstract/Background/Introduction
-            .replace(/^.*?(Abstract|ABSTRACT|Background\/objectives?|Introduction|INTRODUCTION|Results?|RESULTS?):/i, '$1:')
-            // Remove institutional affiliations
-            .replace(/[a-z]\s+[A-Z][a-z]+\s+(University|Medical Center|Institute|Department|Hospital)[^.;]*[.;]/g, '')
-            // Remove author names (multiple patterns)
-            .replace(/^\s*[A-Z][a-z]+\s+[A-Z][a-z]+,?\s+[A-Z]\..*?\n/gm, '') // Smith J.
-            .replace(/^\s*[A-Z][a-z]+,\s*[A-Z]\.,?\s+[A-Z][a-z]+,\s*[A-Z]\./gm, '') // Smith, J., Jones, K.
-            // Remove email addresses
-            .replace(/[\w.-]+@[\w.-]+\.\w+/g, '')
-            // Remove page numbers alone on a line
-            .replace(/^\s*\d+\s*$/gm, '')
-            // Remove journal/copyright notices
-            .replace(/©.*?(?:Taylor|Francis|Wiley|Elsevier|Springer)[^.]*\./gi, '')
-            .replace(/Published online:.*?\d{4}/gi, '')
-            .replace(/View (supplementary material|related articles|citing articles)/gi, '')
-            // Remove DOI references
-            .replace(/doi:\s*\S+/gi, '')
-            .replace(/https?:\/\/\S+/g, '')
-            // Remove common acknowledgment patterns
-            .replace(/Acknowledgements?:.*?(?=\n\n|\n[A-Z]|$)/gi, '')
-            .replace(/Disclosure statement.*?(?=\n\n|\n[A-Z]|$)/gi, '')
-            .replace(/Funding:.*?(?=\n\n|\n[A-Z]|$)/gi, '')
-            // Clean up multiple spaces/newlines
-            .replace(/\s+/g, ' ')
-            .trim();
+        // Flatten and format evidence with similarity scores for transparency
+        // IMPORTANT: Current chunks have quality issues (truncated sentences, metadata, references)
+        // This cleaning is a band-aid - PDFs should be re-parsed with semantic chunking for production
+        drugSpecificEvidence = evidenceResults
+          .flat()
+          .filter(e => {
+            // Filter out bibliography/reference entries (contain common reference patterns)
+            const content = e.content.toLowerCase();
+            if (content.includes('et al.') && content.match(/\d{4}/g)?.length > 3) return false; // Multiple years = likely references
+            if (content.match(/doi:|https?:\/\/|pmid:/gi)) return false; // DOIs, URLs, PMIDs
+            if (content.match(/\d+\(\d+\):\d+-\d+/)) return false; // Journal citation format like "2016;96(2):251–252"
+            return true;
+          })
+          .map(e => {
+            // Clean content: remove common PDF metadata patterns
+            let cleanContent = e.content
+              // Remove everything before Abstract/Background/Introduction
+              .replace(/^.*?(Abstract|ABSTRACT|Background\/objectives?|Introduction|INTRODUCTION|Results?|RESULTS?):/i, '$1:')
+              // Remove institutional affiliations
+              .replace(/[a-z]\s+[A-Z][a-z]+\s+(University|Medical Center|Institute|Department|Hospital)[^.;]*[.;]/g, '')
+              // Remove author names (multiple patterns)
+              .replace(/^\s*[A-Z][a-z]+\s+[A-Z][a-z]+,?\s+[A-Z]\..*?\n/gm, '') // Smith J.
+              .replace(/^\s*[A-Z][a-z]+,\s*[A-Z]\.,?\s+[A-Z][a-z]+,\s*[A-Z]\./gm, '') // Smith, J., Jones, K.
+              // Remove email addresses
+              .replace(/[\w.-]+@[\w.-]+\.\w+/g, '')
+              // Remove page numbers alone on a line
+              .replace(/^\s*\d+\s*$/gm, '')
+              // Remove journal/copyright notices
+              .replace(/©.*?(?:Taylor|Francis|Wiley|Elsevier|Springer)[^.]*\./gi, '')
+              .replace(/Published online:.*?\d{4}/gi, '')
+              .replace(/View (supplementary material|related articles|citing articles)/gi, '')
+              // Remove DOI references
+              .replace(/doi:\s*\S+/gi, '')
+              .replace(/https?:\/\/\S+/g, '')
+              // Remove common acknowledgment patterns
+              .replace(/Acknowledgements?:.*?(?=\n\n|\n[A-Z]|$)/gi, '')
+              .replace(/Disclosure statement.*?(?=\n\n|\n[A-Z]|$)/gi, '')
+              .replace(/Funding:.*?(?=\n\n|\n[A-Z]|$)/gi, '')
+              // Clean up multiple spaces/newlines
+              .replace(/\s+/g, ' ')
+              .trim();
 
-          // Only include chunks with substantial clinical content (not just metadata)
-          if (cleanContent.length < 100) return null;
+            // Only include chunks with substantial clinical content (not just metadata)
+            if (cleanContent.length < 100) return null;
 
-          return `${e.title} (relevance: ${(e.similarity * 100).toFixed(0)}%): ${cleanContent.substring(0, 600)}...`;
-        })
-        .filter(Boolean); // Remove nulls
+            return `${e.title} (relevance: ${(e.similarity * 100).toFixed(0)}%): ${cleanContent.substring(0, 600)}...`;
+          })
+          .filter(Boolean); // Remove nulls
+      } catch (error) {
+        console.error('Drug-specific RAG evidence retrieval failed:', error);
+        // Continue without drug-specific evidence - LLM will still generate recommendations
+      }
     }
 
     // For dose reduction and continue current, display the BRAND name (Humira) not generic (adalimumab)
