@@ -270,6 +270,24 @@ export const BIOLOGICS_DATA: BiologicOption[] = [
     ],
     indications: ['PSORIASIS', 'PSORIATIC_ARTHRITIS'],
   },
+  {
+    brand: 'Wezlana',
+    generic: 'ustekinumab-auub',
+    approvedDoses: ['45mg', '90mg'],
+    standardFrequencies: [
+      { value: 'every-12-weeks', label: 'Every 12 weeks (after loading)' },
+    ],
+    indications: ['PSORIASIS', 'PSORIATIC_ARTHRITIS'],
+  },
+  {
+    brand: 'Yesintek',
+    generic: 'ustekinumab-kfce',
+    approvedDoses: ['45mg', '90mg'],
+    standardFrequencies: [
+      { value: 'every-12-weeks', label: 'Every 12 weeks (after loading)' },
+    ],
+    indications: ['PSORIASIS', 'PSORIATIC_ARTHRITIS'],
+  },
 
   // IL-4/13 Inhibitors (Atopic Dermatitis)
   {
@@ -311,6 +329,15 @@ export const BIOLOGICS_DATA: BiologicOption[] = [
       { value: 'daily', label: 'Daily' },
     ],
     indications: ['ATOPIC_DERMATITIS'],
+  },
+  {
+    brand: 'Sotyktu',
+    generic: 'deucravacitinib',
+    approvedDoses: ['6mg'],
+    standardFrequencies: [
+      { value: 'daily', label: 'Daily' },
+    ],
+    indications: ['PSORIASIS'],
   },
 ];
 
