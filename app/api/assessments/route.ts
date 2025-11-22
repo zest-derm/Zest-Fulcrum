@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
     });
 
     // Generate recommendations using LLM if available, with fallback to rule-based
-    const useLLM = !!process.env.OPENAI_API_KEY;
+    const useLLM = !!process.env.ANTHROPIC_API_KEY;
     let result;
 
     if (useLLM) {
