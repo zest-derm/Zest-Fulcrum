@@ -117,8 +117,8 @@ function getDoseReductionLevel(drugName: string, currentFrequency: string): 0 | 
 }
 
 export interface AssessmentInput {
-  patientId: string;
-  planId?: string;
+  patientId?: string | null;
+  planId: string;  // Required for PHI-free assessments
   currentBiologic?: {
     drugName: string;
     dose: string;
@@ -1052,28 +1052,27 @@ export async function generateLLMRecommendations(
     }>;
   }>;
 }> {
-  // Fetch patient data
-  const patient = await prisma.patient.findUnique({
-    where: { id: assessment.patientId },
-    include: {
-      currentBiologics: true,
-      claims: {
-        orderBy: { fillDate: 'desc' },
-        take: 12,
-      },
-      contraindications: true,
-      plan: true,
-    },
-  });
+  // Fetch patient data if patientId is provided
+  const patient = assessment.patientId
+    ? await prisma.patient.findUnique({
+        where: { id: assessment.patientId },
+        include: {
+          currentBiologics: true,
+          claims: {
+            orderBy: { fillDate: 'desc' },
+            take: 12,
+          },
+          contraindications: true,
+          plan: true,
+        },
+      })
+    : null;
 
-  if (!patient || !patient.plan) {
-    throw new Error('Patient or plan not found');
-  }
+  // Determine the effective plan ID
+  // Priority: assessment.planId > patient.planId > resolved from formularyPlanName
+  let effectivePlanId = assessment.planId || patient?.planId;
 
-  // Determine the effective plan ID (either direct planId or resolved from formularyPlanName)
-  let effectivePlanId = patient.planId;
-
-  if (!effectivePlanId && patient.formularyPlanName) {
+  if (!effectivePlanId && patient?.formularyPlanName) {
     // If no planId but has formularyPlanName, try to find the plan by name
     const planByName = await prisma.insurancePlan.findFirst({
       where: { planName: patient.formularyPlanName },
@@ -1084,6 +1083,19 @@ export async function generateLLMRecommendations(
     } else {
       console.warn(`  ⚠️ Patient has formularyPlanName "${patient.formularyPlanName}" but no matching InsurancePlan found`);
     }
+  }
+
+  if (!effectivePlanId) {
+    throw new Error('Plan ID is required for generating recommendations');
+  }
+
+  // Fetch the plan details
+  const plan = await prisma.insurancePlan.findUnique({
+    where: { id: effectivePlanId },
+  });
+
+  if (!plan) {
+    throw new Error(`Insurance plan not found: ${effectivePlanId}`);
   }
 
   // Get the most recent formulary upload for this plan
@@ -1108,17 +1120,43 @@ export async function generateLLMRecommendations(
       })
     : [];
 
-  // Add formularyDrugs to patient.plan for compatibility with existing code
-  const patientWithFormulary = {
-    ...patient,
-    plan: {
-      ...patient.plan,
-      formularyDrugs,
-    },
-  };
+  // Get current biologic from patient data OR assessment input
+  const currentBiologic = patient?.currentBiologics?.[0] || (assessment.currentBiologic
+    ? {
+        drugName: assessment.currentBiologic.drugName,
+        dose: assessment.currentBiologic.dose,
+        frequency: assessment.currentBiologic.frequency,
+        route: 'Subcutaneous', // Default for biologics
+        startDate: new Date(),
+        lastFillDate: null,
+      }
+    : null);
 
-  const currentBiologic = patient.currentBiologics[0];
   const hasCurrentBiologic = !!currentBiologic;
+
+  // Build patientWithFormulary object (for PHI-free, use assessment data)
+  const patientWithFormulary = patient
+    ? {
+        ...patient,
+        plan: {
+          ...plan,
+          formularyDrugs,
+        },
+      }
+    : {
+        id: assessment.patientId || 'phi-free',
+        planId: effectivePlanId,
+        plan: {
+          ...plan,
+          formularyDrugs,
+        },
+        currentBiologics: currentBiologic ? [currentBiologic] : [],
+        claims: [],
+        contraindications: (assessment.contraindications || []).map(c => ({
+          type: c as any,
+          severity: 'RELATIVE' as const,
+        })),
+      };
 
   console.log(`\n━━━ FORMULARY MATCHING DEBUG ━━━`);
   console.log(`Total formulary drugs available: ${patientWithFormulary.plan.formularyDrugs.length}`);

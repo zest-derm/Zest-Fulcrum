@@ -275,9 +275,18 @@ Return ONLY valid JSON (no markdown, no code blocks):
 }
 
 export interface AssessmentInput {
-  patientId: string;
+  patientId?: string | null;
+  planId: string;  // Required for PHI-free assessments
+  currentBiologic?: {
+    drugName: string;
+    dose: string;
+    frequency: string;
+  } | null;
   diagnosis: DiagnosisType;
   hasPsoriaticArthritis: boolean;
+  contraindications?: string[];
+  failedTherapies?: string[];
+  isStable?: boolean;
   dlqiScore: number;
   monthsStable: number;
   additionalNotes?: string;
@@ -694,57 +703,131 @@ export async function generateRecommendations(
     }>;
   }>;
 }> {
-  // Fetch patient data
-  const patient = await prisma.patient.findUnique({
-    where: { id: assessment.patientId },
-    include: {
-      currentBiologics: true,
-      claims: {
-        orderBy: { fillDate: 'desc' },
-        take: 12,
-      },
-      contraindications: true,
-      plan: true,
-    },
+  // Fetch patient data if patientId is provided
+  const patient = assessment.patientId
+    ? await prisma.patient.findUnique({
+        where: { id: assessment.patientId },
+        include: {
+          currentBiologics: true,
+          claims: {
+            orderBy: { fillDate: 'desc' },
+            take: 12,
+          },
+          contraindications: true,
+          plan: true,
+        },
+      })
+    : null;
+
+  // Determine the effective plan ID
+  // Priority: assessment.planId > patient.planId
+  const effectivePlanId = assessment.planId || patient?.planId;
+
+  if (!effectivePlanId) {
+    throw new Error('Plan ID is required for generating recommendations');
+  }
+
+  // Fetch the plan details
+  const plan = await prisma.insurancePlan.findUnique({
+    where: { id: effectivePlanId },
   });
 
-  if (!patient) {
-    throw new Error('Patient not found');
+  if (!plan) {
+    throw new Error(`Insurance plan not found: ${effectivePlanId}`);
   }
 
   // Get the most recent formulary upload for this plan
-  const mostRecentUpload = patient.planId ? await prisma.uploadLog.findFirst({
+  const mostRecentUpload = effectivePlanId ? await prisma.uploadLog.findFirst({
     where: {
       uploadType: 'FORMULARY',
-      planId: patient.planId,
+      planId: effectivePlanId,
     },
     orderBy: { uploadedAt: 'desc' },
     select: { id: true },
   }) : null;
 
   // Fetch formulary drugs from the most recent upload only
-  const formularyDrugs = mostRecentUpload && patient.planId
+  const formularyDrugs = mostRecentUpload && effectivePlanId
     ? await prisma.formularyDrug.findMany({
         where: {
-          planId: patient.planId,
+          planId: effectivePlanId,
           uploadLogId: mostRecentUpload.id,
         },
       })
     : [];
 
-  // Add formularyDrugs to patient.plan for compatibility with existing code
-  const patientWithFormulary = {
-    ...patient,
-    plan: {
-      ...patient.plan,
-      formularyDrugs,
-    },
-  } as PatientWithData;
+  // Get current biologic from patient data OR assessment input
+  const currentBiologic = patient?.currentBiologics?.[0] || (assessment.currentBiologic
+    ? {
+        id: 'phi-free-biologic',
+        patientId: assessment.patientId || 'phi-free',
+        drugName: assessment.currentBiologic.drugName,
+        dose: assessment.currentBiologic.dose,
+        frequency: assessment.currentBiologic.frequency,
+        route: 'Subcutaneous',
+        startDate: new Date(),
+        lastFillDate: null,
+        isManualOverride: false,
+        claimsDrugName: null,
+        claimsDose: null,
+        claimsFrequency: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }
+    : null);
 
-  const currentBiologic = patientWithFormulary.currentBiologics[0]; // For MVP, assume one biologic
   if (!currentBiologic) {
-    throw new Error('No current biologic found for patient');
+    throw new Error('No current biologic found');
   }
+
+  // Build patientWithFormulary object (for PHI-free, use assessment data)
+  const patientWithFormulary = patient
+    ? {
+        ...patient,
+        plan: {
+          ...plan,
+          formularyDrugs,
+        },
+      }
+    : {
+        id: assessment.patientId || 'phi-free',
+        externalId: null,
+        pharmacyInsuranceId: null,
+        firstName: 'PHI',
+        lastName: 'Free',
+        dateOfBirth: new Date(),
+        streetAddress: null,
+        city: null,
+        state: null,
+        employer: null,
+        email: null,
+        phone: null,
+        eligibilityStartDate: null,
+        eligibilityEndDate: null,
+        costDesignation: null,
+        benchmarkCost: null,
+        planId: effectivePlanId,
+        formularyPlanName: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        plan: {
+          ...plan,
+          formularyDrugs,
+        },
+        currentBiologics: [currentBiologic],
+        claims: [],
+        contraindications: (assessment.contraindications || []).map(c => ({
+          id: `ci-${c}`,
+          patientId: assessment.patientId || 'phi-free',
+          type: c as any,
+          severity: 'RELATIVE' as const,
+          notes: null,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        })),
+        assessments: [],
+        recommendations: [],
+      } as PatientWithData;
 
   // Find current drug in formulary (match by brand name OR generic name for biosimilars)
   const currentFormularyDrug = patientWithFormulary.plan.formularyDrugs.find(drug => {
