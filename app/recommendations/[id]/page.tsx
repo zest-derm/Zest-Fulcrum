@@ -28,6 +28,7 @@ export default async function RecommendationsPage({ params }: PageProps) {
           contraindications: true,
         },
       },
+      plan: true,  // Include plan for PHI-free assessments
       recommendations: {
         orderBy: { rank: 'asc' },
       },
@@ -39,9 +40,9 @@ export default async function RecommendationsPage({ params }: PageProps) {
   }
 
   // Resolve formulary drugs (same logic as decision engine)
-  // If patient has formularyPlanName but no linked plan, look up the plan by name
-  let effectivePlanId = assessment.patient.planId;
-  if (!effectivePlanId && assessment.patient.formularyPlanName) {
+  // Priority: assessment.planId > patient.planId > resolved formularyPlanName
+  let effectivePlanId = assessment.planId || assessment.patient?.planId;
+  if (!effectivePlanId && assessment.patient?.formularyPlanName) {
     const planByName = await prisma.insurancePlan.findFirst({
       where: { planName: assessment.patient.formularyPlanName },
     });
@@ -235,7 +236,7 @@ export default async function RecommendationsPage({ params }: PageProps) {
   );
   const { safe: safeFormularyDrugs, contraindicated: contraindicatedFormularyDrugs } = checkContraindications(
     diagnosisAppropriateDrugs,
-    assessment.patient.contraindications
+    assessment.patient?.contraindications || []
   );
 
   const formatCurrency = (amount: any) => {
@@ -250,7 +251,7 @@ export default async function RecommendationsPage({ params }: PageProps) {
     }).format(numAmount);
   };
 
-  const currentBiologic = assessment.patient.currentBiologics[0];
+  const currentBiologic = assessment.patient?.currentBiologics?.[0];
   const quadrantLabel = assessment.recommendations[0]?.quadrant.replace(/_/g, ' ').toUpperCase();
 
   // Find current drug's tier from formulary
@@ -260,15 +261,21 @@ export default async function RecommendationsPage({ params }: PageProps) {
       )?.tier
     : undefined;
 
+  // Get plan name for display
+  const planName = assessment.plan?.planName || assessment.patient?.plan?.planName || assessment.patient?.formularyPlanName || 'Unknown';
+
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
       {/* Header */}
       <div className="mb-8">
         <h1 className="mb-2">
-          Recommendations for {assessment.patient.firstName} {assessment.patient.lastName}
+          {assessment.patient
+            ? `Recommendations for ${assessment.patient.firstName} ${assessment.patient.lastName}`
+            : 'Clinical Recommendations (PHI-Free Assessment)'
+          }
         </h1>
         <div className="flex items-center gap-6 text-sm text-gray-600">
-          <span>Plan: {assessment.patient.plan?.planName || assessment.patient.formularyPlanName || 'Unknown'}</span>
+          <span>Plan: {planName}</span>
           <span>•</span>
           <span>
             Current: {currentBiologic?.drugName || 'None'} {currentBiologic?.dose} {currentBiologic?.frequency}

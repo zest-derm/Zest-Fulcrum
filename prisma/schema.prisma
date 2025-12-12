@@ -112,6 +112,7 @@ model InsurancePlan {
   patients       Patient[]
   formularyDrugs FormularyDrug[]
   uploadLogs     UploadLog[]
+  assessments    Assessment[]
 }
 
 model Patient {
@@ -285,6 +286,7 @@ model Contraindication {
 model Assessment {
   id                     String         @id @default(cuid())
   patientId              String?        // Optional to support PHI-free assessments
+  planId                 String?        // Insurance plan for PHI-free assessments
   diagnosis              DiagnosisType
   hasPsoriaticArthritis  Boolean        @default(false)
   dlqiScore              Int            // 0-30
@@ -293,9 +295,11 @@ model Assessment {
   assessedAt             DateTime       @default(now())
 
   patient         Patient?         @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  plan            InsurancePlan?   @relation(fields: [planId], references: [id])
   recommendations Recommendation[]
 
   @@index([patientId])
+  @@index([planId])
 }
 
 model Recommendation {

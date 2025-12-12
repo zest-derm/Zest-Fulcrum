@@ -1263,7 +1263,7 @@ export async function generateLLMRecommendations(
   const diagnosisAppropriateDrugs = filterByDiagnosis(patientWithFormulary.plan.formularyDrugs, assessment.diagnosis);
   const { safe: safeFormularyDrugs, contraindicated: contraindicatedDrugs } = checkDrugContraindications(
     diagnosisAppropriateDrugs,
-    patient.contraindications
+    patientWithFormulary.contraindications
   );
   const availableFormularyDrugs = filterFailedTherapies(safeFormularyDrugs, assessment.failedTherapies || []);
   console.log(`Filtered formulary: ${patientWithFormulary.plan.formularyDrugs.length} total → ${diagnosisAppropriateDrugs.length} for ${assessment.diagnosis} → ${safeFormularyDrugs.length} safe, ${contraindicatedDrugs.length} contraindicated → ${availableFormularyDrugs.length} after excluding failed therapies`);
@@ -1289,7 +1289,7 @@ export async function generateLLMRecommendations(
     evidence,
     sortedFormularyDrugs,
     currentFormularyDrug || null,
-    patient.contraindications,
+    patientWithFormulary.contraindications,
     currentDoseReduction,
     lowestTierInFormulary,
     currentTier,

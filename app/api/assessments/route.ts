@@ -35,6 +35,7 @@ export async function POST(request: NextRequest) {
     const assessment = await prisma.assessment.create({
       data: {
         patientId: patientId || null,
+        planId: planId,
         diagnosis,
         hasPsoriaticArthritis: hasPsoriaticArthritis || false,
         dlqiScore: dlqiScore,
