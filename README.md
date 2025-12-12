@@ -90,3 +90,5 @@ fuser -k 3000/tcp 3001/tcp 3002/tcp 2>/dev/null ; npm run dev
 ---
 
 **That's everything you need. Just copy-paste these commands and you're good to go.**
+
+> Last updated: 2025-12-12
