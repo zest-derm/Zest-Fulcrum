@@ -579,3 +579,5 @@ export default async function RecommendationsPage({ params }: PageProps) {
     </div>
   );
 }
+
+export const dynamic = 'force-dynamic';
