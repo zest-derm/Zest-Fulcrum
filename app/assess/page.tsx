@@ -15,17 +15,26 @@ interface Patient {
   costDesignation?: 'HIGH_COST' | 'LOW_COST' | null;
 }
 
+interface InsurancePlan {
+  id: string;
+  planName: string;
+  payerName: string;
+}
+
 export default function AssessmentPage() {
   const router = useRouter();
   const [patients, setPatients] = useState<Patient[]>([]);
+  const [insurancePlans, setInsurancePlans] = useState<InsurancePlan[]>([]);
   const [loading, setLoading] = useState(false);
   const [claimsBiologic, setClaimsBiologic] = useState<any>(null); // Biologic from claims data
   const [showOverrideWarning, setShowOverrideWarning] = useState(false);
   const [pendingBiologicChange, setPendingBiologicChange] = useState<string | null>(null);
   const [showHighCostOnly, setShowHighCostOnly] = useState(false); // Filter for high cost patients
+  const [showStabilityHelp, setShowStabilityHelp] = useState(false); // Stability decision support modal
 
   const [formData, setFormData] = useState({
     patientId: '',
+    planId: '',
     notOnBiologic: false,
     currentBiologic: '',
     dose: '',
@@ -33,8 +42,9 @@ export default function AssessmentPage() {
     diagnosis: 'PSORIASIS',
     hasPsoriaticArthritis: false,
     contraindications: [] as string[],
-    dlqiScore: 5,
-    monthsStable: 6,
+    failedTherapies: [] as string[],
+    isStable: true,
+    monthsStable: 3,
     additionalNotes: '',
   });
 
@@ -56,10 +66,28 @@ export default function AssessmentPage() {
       });
   }, []);
 
+  // Fetch insurance plans
+  useEffect(() => {
+    fetch('/api/insurance-plans')
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data)) {
+          setInsurancePlans(data);
+        } else {
+          console.error('Expected array of insurance plans, got:', data);
+          setInsurancePlans([]);
+        }
+      })
+      .catch(err => {
+        console.error('Failed to fetch insurance plans:', err);
+        setInsurancePlans([]);
+      });
+  }, []);
+
   // Auto-fill current biologic from claims data (SOURCE OF TRUTH)
   const handlePatientChange = async (patientId: string) => {
     if (!patientId) {
-      setFormData({ ...formData, patientId: '' });
+      setFormData(prev => ({ ...prev, patientId: '', planId: '' }));
       setClaimsBiologic(null);
       return;
     }
@@ -101,6 +129,7 @@ export default function AssessmentPage() {
         setFormData(prev => ({
           ...prev,
           patientId,
+          planId: patientData.planId || '',
           currentBiologic: biologicFromClaims.drugName,
           dose: biologicFromClaims.dose,
           frequency: biologicFromClaims.frequency,
@@ -111,6 +140,7 @@ export default function AssessmentPage() {
         setFormData(prev => ({
           ...prev,
           patientId,
+          planId: patientData.planId || '',
           currentBiologic: currentBio.drugName,
           dose: currentBio.dose,
           frequency: currentBio.frequency,
@@ -120,6 +150,7 @@ export default function AssessmentPage() {
         setFormData(prev => ({
           ...prev,
           patientId,
+          planId: patientData.planId || '',
         }));
       }
     } catch (error) {
@@ -168,6 +199,12 @@ export default function AssessmentPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    // Validate insurance plan is selected
+    if (!formData.planId) {
+      alert('Please select an insurance plan.');
+      return;
+    }
+
     // Validate dosing info is provided when on biologic
     if (!formData.notOnBiologic) {
       if (!formData.currentBiologic) {
@@ -187,46 +224,57 @@ export default function AssessmentPage() {
     setLoading(true);
 
     try {
-      // First, create/update current biologic (skip if not on biologic)
-      if (!formData.notOnBiologic && formData.currentBiologic) {
-        // Determine if this is an override
-        const isOverride = claimsBiologic &&
-          formData.currentBiologic.toLowerCase().trim() !== claimsBiologic.drugName.toLowerCase().trim();
+      // Only update patient-specific data if a patient is selected
+      if (formData.patientId) {
+        // First, create/update current biologic (skip if not on biologic)
+        if (!formData.notOnBiologic && formData.currentBiologic) {
+          // Determine if this is an override
+          const isOverride = claimsBiologic &&
+            formData.currentBiologic.toLowerCase().trim() !== claimsBiologic.drugName.toLowerCase().trim();
 
-        await fetch('/api/patients/' + formData.patientId + '/biologic', {
+          await fetch('/api/patients/' + formData.patientId + '/biologic', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              drugName: formData.currentBiologic,
+              dose: formData.dose,
+              frequency: formData.frequency,
+              // Pass override tracking data
+              isManualOverride: isOverride,
+              claimsDrugName: claimsBiologic?.drugName || null,
+              claimsDose: claimsBiologic?.dose || null,
+              claimsFrequency: claimsBiologic?.frequency || null,
+            }),
+          });
+        }
+
+        // Create/update contraindications
+        await fetch('/api/patients/' + formData.patientId + '/contraindications', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            drugName: formData.currentBiologic,
-            dose: formData.dose,
-            frequency: formData.frequency,
-            // Pass override tracking data
-            isManualOverride: isOverride,
-            claimsDrugName: claimsBiologic?.drugName || null,
-            claimsDose: claimsBiologic?.dose || null,
-            claimsFrequency: claimsBiologic?.frequency || null,
+            contraindications: formData.contraindications,
           }),
         });
       }
-
-      // Create/update contraindications
-      await fetch('/api/patients/' + formData.patientId + '/contraindications', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contraindications: formData.contraindications,
-        }),
-      });
 
       // Create assessment and generate recommendations
       const res = await fetch('/api/assessments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          patientId: formData.patientId,
+          patientId: formData.patientId || null,
+          planId: formData.planId,
+          currentBiologic: formData.notOnBiologic ? null : {
+            drugName: formData.currentBiologic,
+            dose: formData.dose,
+            frequency: formData.frequency,
+          },
           diagnosis: formData.diagnosis,
           hasPsoriaticArthritis: formData.hasPsoriaticArthritis,
-          dlqiScore: formData.dlqiScore,
+          contraindications: formData.contraindications,
+          failedTherapies: formData.failedTherapies,
+          isStable: formData.isStable,
           monthsStable: formData.monthsStable,
           additionalNotes: formData.additionalNotes,
         }),
@@ -256,15 +304,15 @@ export default function AssessmentPage() {
 
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-      <h1 className="mb-2">New Patient Assessment</h1>
+      <h1 className="mb-2">New Assessment</h1>
       <p className="text-gray-600 mb-8">
-        Complete this simplified form to generate cost-saving recommendations
+        Complete this form to generate cost-saving recommendations. Select a patient to auto-populate data, or enter information manually.
       </p>
 
       <form onSubmit={handleSubmit} className="card space-y-6">
         {/* Patient Selection */}
         <div>
-          <label className="label">Patient *</label>
+          <label className="label">Patient (optional)</label>
 
           {/* High Cost Filter Checkbox */}
           <div className="mb-3 p-3 bg-amber-50 border border-amber-200 rounded-md">
@@ -288,9 +336,8 @@ export default function AssessmentPage() {
             className="input w-full"
             value={formData.patientId}
             onChange={(e) => handlePatientChange(e.target.value)}
-            required
           >
-            <option value="">Select a patient</option>
+            <option value="">Select a patient (or leave blank for manual entry)</option>
             {Array.isArray(patients) &&
               patients
                 .filter(p => !showHighCostOnly || p.costDesignation === 'HIGH_COST')
@@ -304,6 +351,27 @@ export default function AssessmentPage() {
           </select>
           <p className="text-xs text-gray-500 mt-1">
             Auto-fills claims data, health plan, and formulary information
+          </p>
+        </div>
+
+        {/* Insurance Plan Selection */}
+        <div>
+          <label className="label">Insurance Plan *</label>
+          <select
+            className="input w-full"
+            value={formData.planId}
+            onChange={(e) => setFormData(prev => ({ ...prev, planId: e.target.value }))}
+            required
+          >
+            <option value="">Select an insurance plan</option>
+            {insurancePlans.map(plan => (
+              <option key={plan.id} value={plan.id}>
+                {plan.planName} ({plan.payerName})
+              </option>
+            ))}
+          </select>
+          <p className="text-xs text-gray-500 mt-1">
+            {formData.patientId ? 'Auto-populated from patient record' : 'Required to determine formulary and coverage'}
           </p>
         </div>
 
@@ -353,6 +421,57 @@ export default function AssessmentPage() {
                 required={!formData.notOnBiologic}
               />
             </>
+          )}
+        </div>
+
+        {/* Failed Therapies */}
+        <div>
+          <label className="label">Failed Therapies (optional)</label>
+          <p className="text-xs text-gray-500 mb-2">
+            Select biologics that have previously failed for this patient. These will be excluded from recommendations.
+          </p>
+          <BiologicInput
+            value={{
+              drugName: '',
+              dose: '',
+              frequency: '',
+            }}
+            onChange={(value) => {
+              if (value.drugName && !formData.failedTherapies.includes(value.drugName)) {
+                setFormData(prev => ({
+                  ...prev,
+                  failedTherapies: [...prev.failedTherapies, value.drugName],
+                }));
+              }
+            }}
+            required={false}
+            placeholder="Select a failed therapy to add"
+          />
+          {formData.failedTherapies.length > 0 && (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {formData.failedTherapies.map((therapy) => (
+                <div
+                  key={therapy}
+                  className="inline-flex items-center gap-2 px-3 py-1 bg-red-50 border border-red-200 rounded-md text-sm"
+                >
+                  <span className="text-red-900">{therapy}</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFormData(prev => ({
+                        ...prev,
+                        failedTherapies: prev.failedTherapies.filter(t => t !== therapy),
+                      }));
+                    }}
+                    className="text-red-600 hover:text-red-800"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              ))}
+            </div>
           )}
         </div>
 
@@ -423,23 +542,49 @@ export default function AssessmentPage() {
           </div>
         </div>
 
-        {/* DLQI Score */}
+        {/* Patient Stability */}
         <div>
-          <label className="label">Disease Severity (DLQI) *</label>
-          <div className="flex items-center gap-4">
-            <input
-              type="range"
-              min="0"
-              max="30"
-              value={formData.dlqiScore}
-              onChange={(e) => setFormData({ ...formData, dlqiScore: Number(e.target.value) })}
-              className="flex-1"
-            />
-            <span className="font-semibold text-lg w-16 text-center">{formData.dlqiScore}/30</span>
+          <div className="flex items-center justify-between mb-3">
+            <label className="label mb-0">Patient Stability *</label>
+            <button
+              type="button"
+              onClick={() => setShowStabilityHelp(true)}
+              className="text-sm text-primary-600 hover:text-primary-700 flex items-center gap-1"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              How do I define stability?
+            </button>
           </div>
-          <p className="text-xs text-gray-500 mt-1">
-            0-1: No impact | 2-5: Small impact | 6-10: Moderate impact | 11-20: Large impact | 21-30: Extremely large
-          </p>
+          <div className="space-y-2">
+            <label className="flex items-center p-3 border rounded-md cursor-pointer hover:bg-gray-50">
+              <input
+                type="radio"
+                name="stability"
+                checked={formData.isStable}
+                onChange={() => setFormData(prev => ({ ...prev, isStable: true }))}
+                className="mr-3"
+              />
+              <div>
+                <div className="font-medium">Patient is stable</div>
+                <div className="text-xs text-gray-500">Disease is well-controlled with current therapy</div>
+              </div>
+            </label>
+            <label className="flex items-center p-3 border rounded-md cursor-pointer hover:bg-gray-50">
+              <input
+                type="radio"
+                name="stability"
+                checked={!formData.isStable}
+                onChange={() => setFormData(prev => ({ ...prev, isStable: false }))}
+                className="mr-3"
+              />
+              <div>
+                <div className="font-medium">Patient is not stable</div>
+                <div className="text-xs text-gray-500">Disease is not adequately controlled</div>
+              </div>
+            </label>
+          </div>
         </div>
 
         {/* Time at Stability */}
@@ -535,6 +680,101 @@ export default function AssessmentPage() {
                 className="flex-1 px-4 py-2 border border-transparent rounded-md text-sm font-medium text-white bg-orange-600 hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500"
               >
                 Yes, Override
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Stability Decision Support Modal */}
+      {showStabilityHelp && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 shadow-xl max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-start mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">
+                How to Define Stability in Psoriasis
+              </h3>
+              <button
+                onClick={() => setShowStabilityHelp(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="space-y-4 text-sm text-gray-700">
+              <div>
+                <h4 className="font-semibold text-gray-900 mb-2">Clinical Definition of Stability</h4>
+                <p>
+                  A patient is considered <strong>stable</strong> when their psoriasis is well-controlled on current therapy,
+                  with minimal disease activity and impact on quality of life. Consider the patient stable if they meet most of the following criteria:
+                </p>
+              </div>
+
+              <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
+                <h4 className="font-semibold text-blue-900 mb-2">DLQI (Dermatology Life Quality Index)</h4>
+                <p className="mb-2">Score range: 0-30 (lower is better)</p>
+                <ul className="list-disc list-inside space-y-1 text-blue-900">
+                  <li><strong>0-1:</strong> No impact on life - Patient is stable</li>
+                  <li><strong>2-5:</strong> Small impact on life - Patient is stable</li>
+                  <li><strong>6-10:</strong> Moderate impact - Consider not stable</li>
+                  <li><strong>11-20:</strong> Large impact - Patient is not stable</li>
+                  <li><strong>21-30:</strong> Extremely large impact - Patient is not stable</li>
+                </ul>
+                <p className="mt-2 text-xs text-blue-800">
+                  <strong>Rule of thumb:</strong> DLQI ≤ 5 typically indicates stable disease
+                </p>
+              </div>
+
+              <div className="bg-green-50 border border-green-200 rounded-md p-4">
+                <h4 className="font-semibold text-green-900 mb-2">PASI (Psoriasis Area and Severity Index)</h4>
+                <p className="mb-2">Score range: 0-72 (lower is better)</p>
+                <ul className="list-disc list-inside space-y-1 text-green-900">
+                  <li><strong>0-5:</strong> Mild psoriasis - Patient is stable</li>
+                  <li><strong>5-10:</strong> Moderate psoriasis - May be stable depending on patient goals</li>
+                  <li><strong>10+:</strong> Severe psoriasis - Patient is not stable</li>
+                </ul>
+                <p className="mt-2 text-xs text-green-800">
+                  <strong>Clinical trials standard:</strong> PASI 75 (75% improvement from baseline) or better indicates good response
+                </p>
+              </div>
+
+              <div className="bg-purple-50 border border-purple-200 rounded-md p-4">
+                <h4 className="font-semibold text-purple-900 mb-2">BSA (Body Surface Area)</h4>
+                <p className="mb-2">Percentage of body covered by psoriasis</p>
+                <ul className="list-disc list-inside space-y-1 text-purple-900">
+                  <li><strong>&lt;3%:</strong> Mild psoriasis - Patient is likely stable</li>
+                  <li><strong>3-10%:</strong> Moderate psoriasis - Evaluate if stable based on location and impact</li>
+                  <li><strong>&gt;10%:</strong> Severe psoriasis - Patient is not stable</li>
+                </ul>
+              </div>
+
+              <div>
+                <h4 className="font-semibold text-gray-900 mb-2">Additional Considerations</h4>
+                <ul className="list-disc list-inside space-y-1">
+                  <li>Duration of stability: Patient should maintain control for at least 3 months</li>
+                  <li>Special areas: Psoriasis on palms, soles, scalp, or genitals has greater impact even with lower BSA</li>
+                  <li>Patient satisfaction: Patient reports being satisfied with current level of control</li>
+                  <li>No recent flares: No significant disease worsening in past 3-6 months</li>
+                </ul>
+              </div>
+
+              <div className="bg-amber-50 border border-amber-200 rounded-md p-3">
+                <p className="text-xs text-amber-900">
+                  <strong>Note:</strong> Use your clinical judgment. These are guidelines, not absolute rules.
+                  Consider the whole patient picture including comorbidities, treatment goals, and patient preferences.
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-6">
+              <button
+                onClick={() => setShowStabilityHelp(false)}
+                className="w-full px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+              >
+                Close
               </button>
             </div>
           </div>

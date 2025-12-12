@@ -8,20 +8,36 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const {
       patientId,
+      planId,
+      currentBiologic,
       diagnosis,
       hasPsoriaticArthritis,
-      dlqiScore,
+      contraindications,
+      isStable,
       monthsStable,
       additionalNotes,
+      failedTherapies,
     } = body;
+
+    // Validate required fields
+    if (!planId) {
+      return NextResponse.json(
+        { error: 'Insurance plan is required' },
+        { status: 400 }
+      );
+    }
+
+    // Convert isStable boolean to DLQI score for database compatibility
+    // Stable = DLQI 2 (small impact), Unstable = DLQI 8 (moderate impact)
+    const dlqiScore = isStable ? 2 : 8;
 
     // Create assessment
     const assessment = await prisma.assessment.create({
       data: {
-        patientId,
+        patientId: patientId || null,
         diagnosis,
         hasPsoriaticArthritis: hasPsoriaticArthritis || false,
-        dlqiScore: Number(dlqiScore),
+        dlqiScore: dlqiScore,
         monthsStable: Number(monthsStable),
         additionalNotes,
       },
@@ -31,39 +47,32 @@ export async function POST(request: NextRequest) {
     const useLLM = !!process.env.ANTHROPIC_API_KEY;
     let result;
 
+    const assessmentInput = {
+      patientId: patientId || assessment.id, // Use assessment ID if no patient
+      planId,
+      currentBiologic,
+      diagnosis,
+      hasPsoriaticArthritis: hasPsoriaticArthritis || false,
+      contraindications: contraindications || [],
+      failedTherapies: failedTherapies || [],
+      isStable,
+      dlqiScore: dlqiScore,
+      monthsStable: Number(monthsStable),
+      additionalNotes,
+    };
+
     if (useLLM) {
       try {
         console.log('Attempting LLM-based recommendations...');
-        result = await generateLLMRecommendations({
-          patientId,
-          diagnosis,
-          hasPsoriaticArthritis: hasPsoriaticArthritis || false,
-          dlqiScore: Number(dlqiScore),
-          monthsStable: Number(monthsStable),
-          additionalNotes,
-        });
+        result = await generateLLMRecommendations(assessmentInput);
         console.log(`LLM generated ${result.recommendations.length} recommendations`);
       } catch (error: any) {
         console.error('LLM recommendations failed, falling back to rule-based:', error.message);
-        result = await generateRecommendations({
-          patientId,
-          diagnosis,
-          hasPsoriaticArthritis: hasPsoriaticArthritis || false,
-          dlqiScore: Number(dlqiScore),
-          monthsStable: Number(monthsStable),
-          additionalNotes,
-        });
+        result = await generateRecommendations(assessmentInput);
         console.log(`Rule-based generated ${result.recommendations.length} recommendations`);
       }
     } else {
-      result = await generateRecommendations({
-        patientId,
-        diagnosis,
-        hasPsoriaticArthritis: hasPsoriaticArthritis || false,
-        dlqiScore: Number(dlqiScore),
-        monthsStable: Number(monthsStable),
-        additionalNotes,
-      });
+      result = await generateRecommendations(assessmentInput);
     }
 
     // Save recommendations

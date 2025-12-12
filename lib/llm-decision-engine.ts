@@ -118,8 +118,17 @@ function getDoseReductionLevel(drugName: string, currentFrequency: string): 0 | 
 
 export interface AssessmentInput {
   patientId: string;
+  planId?: string;
+  currentBiologic?: {
+    drugName: string;
+    dose: string;
+    frequency: string;
+  } | null;
   diagnosis: DiagnosisType;
   hasPsoriaticArthritis: boolean;
+  contraindications?: string[];
+  failedTherapies?: string[];
+  isStable?: boolean;
   dlqiScore: number;
   monthsStable: number;
   additionalNotes?: string;
@@ -148,8 +157,8 @@ interface LLMRecommendation {
  * Check if patient is stable but for insufficient duration
  * These patients should continue current therapy, not optimize yet
  */
-function isStableShortDuration(dlqiScore: number, monthsStable: number): boolean {
-  return dlqiScore <= 4 && monthsStable < 6;
+function isStableShortDuration(isStable: boolean, monthsStable: number): boolean {
+  return isStable && monthsStable < 3;
 }
 
 /**
@@ -176,7 +185,7 @@ function stripMarkdownCodeBlock(text: string): string {
  * Determine formulary status and quadrant using hard-coded rules
  */
 function determineQuadrantAndStatus(
-  dlqiScore: number,
+  isStableInput: boolean,
   monthsStable: number,
   currentFormularyDrug: FormularyDrug | null,
   hasCurrentBiologic: boolean
@@ -191,7 +200,7 @@ function determineQuadrantAndStatus(
   }
 
   // Check for stable but insufficient duration - special case
-  if (isStableShortDuration(dlqiScore, monthsStable)) {
+  if (isStableShortDuration(isStableInput, monthsStable)) {
     const isFormularyOptimal = currentFormularyDrug
       ? currentFormularyDrug.tier === 1
       : false;
@@ -202,8 +211,8 @@ function determineQuadrantAndStatus(
     };
   }
 
-  // Stability: DLQI ≤4 (minimal to mild effect on life) and ≥6 months stable
-  const isStable = dlqiScore <= 4 && monthsStable >= 6;
+  // Stability: Based on clinician judgment and ≥3 months stable
+  const isStable = isStableInput && monthsStable >= 3;
 
   // Formulary optimal: Tier 1 (regardless of PA requirement for CURRENT therapy)
   // Rationale: If patient is already on a Tier 1 drug with PA, they've cleared that hurdle.
@@ -265,17 +274,17 @@ COMPREHENSIVE TIER CASCADE LOGIC:
 - For stable patients ABOVE lowest tier: Recommend switches to ALL lower tiers (lowest first), then dose reduction when reaching current tier
 - For stable patients ON lowest tier: Recommend dose reduction stepping (0% → 25% → 50% max)
 - For unstable + dose-reduced patients: Return to standard dosing FIRST
-- For stable <6 months: CAN switch tiers, CANNOT dose reduce yet
+- For stable <3 months: CAN switch tiers, CANNOT dose reduce yet
 
 DOSE REDUCTION STEPPING:
 - Maximum reduction: 50% from standard
 - Step 1: Standard (0%) → 25% reduction
 - Step 2: 25% → 50% reduction (maximum)
-- Only for stable ≥6 months
+- Only for stable ≥3 months
 - Clinical evidence should be retrieved
 
 CONTINUE CURRENT only when:
-- Stable <6 months (too early to optimize), OR
+- Stable <3 months (too early to optimize), OR
 - Already dose-reduced + on lowest tier + stable
 
 Based on quadrant "${quadrant}", current dose ${currentDoseReduction}%, tier ${currentTier} of ${lowestTierInFormulary}, determine:
@@ -392,6 +401,44 @@ function filterByDiagnosis(
       // Exact match OR partial match (e.g., "psoriasis" matches "psoriatic arthritis")
       return indicationLower.includes(diagnosisLower) || diagnosisLower.includes(indicationLower);
     });
+  });
+}
+
+/**
+ * Filter out failed therapies and their biosimilars
+ * If a drug or its biosimilars are in the failed therapies list, exclude it
+ */
+function filterFailedTherapies(
+  drugs: FormularyDrug[],
+  failedTherapies: string[]
+): FormularyDrug[] {
+  if (!failedTherapies || failedTherapies.length === 0) {
+    return drugs;
+  }
+
+  return drugs.filter(drug => {
+    const drugNameLower = drug.drugName.toLowerCase();
+    const genericNameLower = drug.genericName.toLowerCase();
+
+    // Check if this drug or its generic matches any failed therapy
+    for (const failed of failedTherapies) {
+      const failedLower = failed.toLowerCase();
+
+      // Match by brand name
+      if (drugNameLower === failedLower) {
+        console.log(`  ⚠️  Excluding ${drug.drugName} - matches failed therapy ${failed}`);
+        return false;
+      }
+
+      // Match by generic name (includes biosimilars)
+      // e.g., if "Humira" failed, exclude all adalimumab drugs
+      if (genericNameLower === failedLower || genericNameLower.startsWith(failedLower + '-')) {
+        console.log(`  ⚠️  Excluding ${drug.drugName} (${drug.genericName}) - biosimilar of failed therapy ${failed}`);
+        return false;
+      }
+    }
+
+    return true;
   });
 }
 
@@ -743,29 +790,36 @@ ${evidenceText}
 TIER CASCADE ALGORITHM (COST SAVINGS PRIORITY)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-**PRIMARY PRINCIPLE: Recommend LOWEST tier first, cascade upward to current tier, THEN dose reduction**
+**PRIMARY PRINCIPLE: For stable patients >3 months NOT on lowest tier: Tier switches FIRST, dose reduction/cessation LAST**
+**For stable patients ON lowest tier: Dose reduction first, then cessation if needed**
 
-For STABLE patients (DLQI ≤4) above the lowest tier:
-1. **First Priority**: Recommend switches to Tier ${lowestTierInFormulary} (lowest available)
-2. **Second Priority**: Recommend switches to next lowest tier (${availableTiers[1] || 'N/A'})
-3. **Third Priority**: Continue cascade through available tiers up to patient's current tier
-4. **Fourth Priority**: ONLY when reaching current tier (${currentTier}), offer dose reduction
-5. **Last Resort**: CONTINUE_CURRENT only if already dose-reduced + on lowest tier + stable
+For STABLE patients (stable >3 months) ABOVE the lowest tier:
+1. **First Priority**: Exhaust ALL tier switches - recommend Tier ${lowestTierInFormulary}, then ${availableTiers[1] || 'N/A'}, etc.
+2. **Second Priority**: ONLY if running out of tier options to fill 3 recs, offer dose reduction
+3. **Third Priority**: ONLY if exhausted tiers AND dose reduction AND still need recs, offer CEASE_BIOLOGIC with non-biologic alternative
+4. **Cessation Rule**: Must recommend Zoryve (roflumilast) for psoriasis or Opzelura (ruxolitinib) for atopic dermatitis as alternative
 
 For STABLE patients ON the lowest tier (Tier ${lowestTierInFormulary}):
-1. **First Priority**: Dose reduction with 25% stepping (if current dose = 0% reduced → recommend 25% reduction)
-2. **Second Priority**: Further dose reduction (if current dose = 25% reduced → recommend 50% reduction)
-3. **Third Priority**: CONTINUE_CURRENT (if already 50% reduced, maximum optimization reached)
-4. **Maximum**: 50% reduction from standard dosing (NEVER exceed 50%)
+1. **First Priority**: Dose reduction stepping (0% → 25% → 50% max)
+2. **Second Priority**: If already 50% reduced OR need to fill 3 recs, offer CEASE_BIOLOGIC with non-biologic alternative (Zoryve for psoriasis, Opzelura for atopic dermatitis)
+3. **Last Resort**: CONTINUE_CURRENT only if no optimization possible
 
-For UNSTABLE patients (DLQI >4):
-1. **Never dose reduce** - patient needs better control
-2. Recommend most efficacious drugs in best available tier
-3. Prioritize mechanism switching (TNF → IL-17/IL-23 for better efficacy)
+For UNSTABLE patients on REDUCED dose:
+1. **Primary Goal**: Keep patient on dose reduction while improving control
+2. **First Priority**: ADD_TOPICAL - add Zoryve, Opzelura, or tacrolimus (lowest tier topical) to current dose-reduced biologic
+3. **Second Priority**: If ADD_TOPICAL insufficient, consider returning to standard dosing
+4. **Third Priority**: Switch to different biologic at standard dosing (lower tier if available)
+5. **Never recommend**: Dose reduction for unstable patients
 
-For patients stable <6 months:
-1. **CONTINUE_CURRENT** - too early to optimize (need ${6 - assessment.monthsStable} more months)
-2. Mention future options once 6 months stability achieved
+For UNSTABLE patients on STANDARD dose:
+1. Recommend most efficacious drugs in best available tier
+2. Prioritize mechanism switching (TNF → IL-17/IL-23 for better efficacy)
+3. **Never dose reduce**
+
+For patients stable <3 months:
+1. **CONTINUE_CURRENT** - too early to optimize (need ${3 - assessment.monthsStable} more months)
+2. Can consider tier switches for cost savings, but NO dose reduction yet
+3. Mention dose reduction as future option once 3 months stability achieved
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 DOSE REDUCTION STEPPING RULES
@@ -825,6 +879,8 @@ Use these types:
 - **SWITCH_TO_PREFERRED**: Switching to different drug in lower tier (formulary optimization)
 - **THERAPEUTIC_SWITCH**: Switching mechanism for efficacy (e.g., TNF → IL-23 for better control)
 - **DOSE_REDUCTION**: Extending interval of current drug (must cite RAG evidence)
+- **CEASE_BIOLOGIC**: Discontinue biologic therapy (only for stable patients after exhausting other options, must recommend non-biologic alternative)
+- **ADD_TOPICAL**: Add topical therapy to dose-reduced biologic (for unstable patients on reduced dose, to maintain dose reduction while improving control)
 - **CONTINUE_CURRENT**: Continue current therapy unchanged (only when truly no optimization possible)
 - **OPTIMIZE_CURRENT**: Minor adjustments to current therapy
 
@@ -858,21 +914,29 @@ For EACH recommendation provide:
 1. **Type**: One of the types listed above
 2. **Drug name**:
    - CONTINUE_CURRENT/OPTIMIZE_CURRENT/DOSE_REDUCTION: "${currentBrandName}"
+   - CEASE_BIOLOGIC: "Discontinue ${currentBrandName}"
+   - ADD_TOPICAL: "Zoryve" or "Opzelura" or "Tacrolimus" (from formulary, lowest tier)
    - SWITCH recommendations: From formulary options above
    - NEVER recommend same drug twice
 3. **New dose**:
    - DOSE_REDUCTION: Specific reduced dose (e.g., "40 mg")
+   - CEASE_BIOLOGIC: "N/A" but MUST mention non-biologic alternative in rationale (Zoryve for psoriasis, Opzelura for AD)
+   - ADD_TOPICAL: "Per label for topical" + maintain current biologic dose
    - SWITCHES: FDA-approved specific dose (e.g., "300 mg", "80 mg initial then 40 mg")
-   - NEVER use "Per label" - always specify actual dose
+   - NEVER use "Per label" for biologics - always specify actual dose
 4. **New frequency**:
    - DOSE_REDUCTION: Specific reduced interval (e.g., "every 4 weeks")
+   - CEASE_BIOLOGIC: "N/A"
+   - ADD_TOPICAL: "Daily or twice daily per label" + maintain current biologic frequency
    - SWITCHES: FDA-approved specific frequency (e.g., "every 2 weeks after initial dose")
-   - NEVER use "Per label" - always specify actual interval
+   - NEVER use "Per label" for biologics - always specify actual interval
 5. **Rationale**:
    - DOSE_REDUCTION: Cite all relevant papers from Clinical Evidence section
+   - CEASE_BIOLOGIC: Explain that patient has been stable for extended period, has exhausted other optimization options, and recommend transitioning to non-biologic therapy (Zoryve/Opzelura/tacrolimus)
+   - ADD_TOPICAL: Explain that adding topical allows maintaining dose-reduced biologic while improving control for unstable patient
    - SWITCHES: Clear clinical reasoning (cost savings, efficacy, formulary optimization)
    - Parse additionalNotes for comorbidities to justify drug selection
-6. **Monitoring plan**: Specific follow-up plan (e.g., "Reassess DLQI at 3 and 6 months")
+6. **Monitoring plan**: Specific follow-up plan (e.g., "Reassess at 3 and 6 months")
 
 ⚠️ NEVER output placeholder text like "No options available" as a drug name.
 ⚠️ NEVER recommend the current drug as a "switch" - it's excluded from formulary options.
@@ -1120,7 +1184,7 @@ export async function generateLLMRecommendations(
 
   // Step 1: Determine quadrant using hard-coded rules (don't trust LLM for this)
   const { isStable, isFormularyOptimal, quadrant} = determineQuadrantAndStatus(
-    assessment.dlqiScore,
+    assessment.isStable ?? (assessment.dlqiScore <= 4), // Use isStable if provided, fallback to DLQI
     assessment.monthsStable,
     currentFormularyDrug || null,
     hasCurrentBiologic
@@ -1135,7 +1199,7 @@ export async function generateLLMRecommendations(
     requiresPA: currentFormularyDrug.requiresPA
   } : 'NULL - NOT FOUND IN FORMULARY');
   console.log(`Quadrant: ${quadrant}`);
-  console.log(`isStable: ${isStable} (DLQI: ${assessment.dlqiScore}, months: ${assessment.monthsStable})`);
+  console.log(`isStable: ${isStable} (Clinician input: ${assessment.isStable}, months: ${assessment.monthsStable})`);
   console.log(`isFormularyOptimal: ${isFormularyOptimal} (Tier ${currentFormularyDrug?.tier}, PA: ${currentFormularyDrug?.requiresPA})`);
   console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
 
@@ -1157,16 +1221,17 @@ export async function generateLLMRecommendations(
   const evidence = await retrieveStructuredFindings(genericDrugName, assessment.diagnosis, triage);
   console.log(`Retrieved ${evidence.length} structured clinical findings for LLM context`);
 
-  // Step 4: Filter drugs by diagnosis, then by contraindications
+  // Step 4: Filter drugs by diagnosis, then by contraindications, then by failed therapies
   const diagnosisAppropriateDrugs = filterByDiagnosis(patientWithFormulary.plan.formularyDrugs, assessment.diagnosis);
   const { safe: safeFormularyDrugs, contraindicated: contraindicatedDrugs } = checkDrugContraindications(
     diagnosisAppropriateDrugs,
     patient.contraindications
   );
-  console.log(`Filtered formulary: ${patientWithFormulary.plan.formularyDrugs.length} total → ${diagnosisAppropriateDrugs.length} for ${assessment.diagnosis} → ${safeFormularyDrugs.length} safe, ${contraindicatedDrugs.length} contraindicated`);
+  const availableFormularyDrugs = filterFailedTherapies(safeFormularyDrugs, assessment.failedTherapies || []);
+  console.log(`Filtered formulary: ${patientWithFormulary.plan.formularyDrugs.length} total → ${diagnosisAppropriateDrugs.length} for ${assessment.diagnosis} → ${safeFormularyDrugs.length} safe, ${contraindicatedDrugs.length} contraindicated → ${availableFormularyDrugs.length} after excluding failed therapies`);
 
-  // Sort safe formulary drugs to prioritize lower tiers
-  const sortedFormularyDrugs = [...safeFormularyDrugs].sort((a, b) => {
+  // Sort available formulary drugs (after excluding failed therapies) to prioritize lower tiers
+  const sortedFormularyDrugs = [...availableFormularyDrugs].sort((a, b) => {
     // Sort by tier first (lower is better)
     if (a.tier !== b.tier) return a.tier - b.tier;
     // Then by PA requirement (no PA is better)
