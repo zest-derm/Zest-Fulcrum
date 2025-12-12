@@ -284,7 +284,7 @@ model Contraindication {
 
 model Assessment {
   id                     String         @id @default(cuid())
-  patientId              String
+  patientId              String?        // Optional to support PHI-free assessments
   diagnosis              DiagnosisType
   hasPsoriaticArthritis  Boolean        @default(false)
   dlqiScore              Int            // 0-30
@@ -292,7 +292,7 @@ model Assessment {
   additionalNotes        String?
   assessedAt             DateTime       @default(now())
 
-  patient         Patient          @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  patient         Patient?         @relation(fields: [patientId], references: [id], onDelete: Cascade)
   recommendations Recommendation[]
 
   @@index([patientId])
@@ -301,7 +301,7 @@ model Assessment {
 model Recommendation {
   id                      String             @id @default(cuid())
   assessmentId            String
-  patientId               String
+  patientId               String?            // Optional to support PHI-free assessments
 
   // Quadrant classification
   isStable                Boolean
@@ -346,7 +346,7 @@ model Recommendation {
   updatedAt               DateTime           @updatedAt
 
   assessment Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
-  patient    Patient    @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  patient    Patient?   @relation(fields: [patientId], references: [id], onDelete: Cascade)
 
   @@index([assessmentId])
   @@index([patientId])
