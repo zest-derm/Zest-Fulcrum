@@ -13,7 +13,10 @@ const nextConfig = {
     // Disable strict check for useSearchParams() in client components
     // This is needed because some client components use useSearchParams
     // and adding export const dynamic = 'force-dynamic' is sufficient
-    missingSuspenseWithCSRBailout: false
+    missingSuspenseWithCSRBailout: false,
+    // CRITICAL: Required for Prisma to work correctly in Vercel serverless functions
+    // Without this, Prisma won't have access to environment variables
+    serverComponentsExternalPackages: ['@prisma/client', '@prisma/engines'],
   }
 };
 
