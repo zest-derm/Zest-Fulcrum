@@ -268,11 +268,11 @@ Formulary Tier Structure (RELATIVE TIER LOGIC):
 - Requires PA: ${formularyDrug?.requiresPA || 'Unknown'}
 - Classification: ${quadrant.replace(/_/g, ' ').toUpperCase()}
 
-KEY PRINCIPLE: Cost savings is the priority. The lowest available tier in THIS formulary is the target, not necessarily Tier 1.
+KEY PRINCIPLE: For stable patients, prioritize de-escalation (dose reduction, cessation) before class switches.
 
-COMPREHENSIVE TIER CASCADE LOGIC:
-- For stable patients ABOVE lowest tier: Recommend switches to ALL lower tiers (lowest first), then dose reduction when reaching current tier
-- For stable patients ON lowest tier: Recommend dose reduction stepping (0% → 25% → 50% max)
+COMPREHENSIVE OPTIMIZATION LOGIC:
+- For stable patients (≥3 months): Dose reduction FIRST, then cessation, THEN tier switches if needed
+- For stable patients ON lowest tier: Recommend dose reduction stepping (0% → 25% → 50% max), then cessation
 - For unstable + dose-reduced patients: Return to standard dosing FIRST
 - For stable <3 months: CAN switch tiers, CANNOT dose reduce yet
 
@@ -287,11 +287,15 @@ CONTINUE CURRENT only when:
 - Stable <3 months (too early to optimize), OR
 - Already dose-reduced + on lowest tier + stable
 
-Based on quadrant "${quadrant}", current dose ${currentDoseReduction}%, tier ${currentTier} of ${lowestTierInFormulary}, determine:
-1. Should dose reduction be considered?
-2. Should formulary switch be recommended?
-3. What is the recommendation priority order?
-4. Provide clinical reasoning
+Based on quadrant "${quadrant}", current dose ${currentDoseReduction}%, tier ${currentTier} of ${lowestTierInFormulary}, determine flags:
+
+**Flag Setting Rules:**
+- "canDoseReduce": true if stable ≥3 months AND dose reduction not yet maxed (not at 50%)
+- "shouldSwitch": true ONLY if stable ≥3 months AND already recommended dose reduction AND cessation
+- "needsInitiation": true if not currently on biologic
+- "shouldContinueCurrent": true if stable <3 months OR already 50% reduced + on lowest tier
+
+**CRITICAL**: For stable patients ≥3 months, canDoseReduce should be TRUE (prioritize de-escalation first)
 
 Return ONLY a JSON object with this exact structure:
 {
@@ -300,7 +304,7 @@ Return ONLY a JSON object with this exact structure:
   "needsInitiation": boolean,
   "shouldContinueCurrent": boolean,
   "quadrant": "${quadrant}",
-  "reasoning": "string"
+  "reasoning": "string explaining the de-escalation priority: dose reduction → cessation → tier switches"
 }`;
 
   const anthropic = getAnthropic();
@@ -787,22 +791,25 @@ ${evidenceText}
 ⚠️ When recommending DOSE_REDUCTION, cite ALL relevant papers from above by specific titles and authors. NEVER hallucinate citations. Accuracy > citation count.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-TIER CASCADE ALGORITHM (COST SAVINGS PRIORITY)
+OPTIMIZATION ALGORITHM (DE-ESCALATION PRIORITY)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-**PRIMARY PRINCIPLE: For stable patients >3 months NOT on lowest tier: Tier switches FIRST, dose reduction/cessation LAST**
-**For stable patients ON lowest tier: Dose reduction first, then cessation if needed**
+**PRIMARY PRINCIPLE: For ALL stable patients >3 months: Dose reduction FIRST, cessation SECOND, class switches LAST**
+**Rationale: De-escalation maintains disease control while minimizing medication burden before considering class changes**
 
-For STABLE patients (stable >3 months) ABOVE the lowest tier:
-1. **First Priority**: Exhaust ALL tier switches - recommend Tier ${lowestTierInFormulary}, then ${availableTiers[1] || 'N/A'}, etc.
-2. **Second Priority**: ONLY if running out of tier options to fill 3 recs, offer dose reduction
-3. **Third Priority**: ONLY if exhausted tiers AND dose reduction AND still need recs, offer CEASE_BIOLOGIC with non-biologic alternative
-4. **Cessation Rule**: Must recommend Zoryve (roflumilast) for psoriasis or Opzelura (ruxolitinib) for atopic dermatitis as alternative
+For STABLE patients (stable ≥3 months) regardless of tier:
+1. **First Priority**: DOSE_REDUCTION - Start dose reduction stepping (0% → 25% reduction)
+   - If already 25% reduced: Offer 50% reduction as next step
+   - If already 50% reduced: Maximum reached, move to next priority
+2. **Second Priority**: CEASE_BIOLOGIC - Discontinue biologic with non-biologic alternative
+   - Must recommend Zoryve (roflumilast) for psoriasis or Opzelura (ruxolitinib) for atopic dermatitis
+   - Only after dose reduction options exhausted or if need to fill 3 recommendations
+3. **Third Priority**: Class switches to lower-tier options (if not on lowest tier)
+   - Switch to Tier ${lowestTierInFormulary} (lowest available), then ${availableTiers[1] || 'N/A'} if needed
+   - Prioritize biosimilars of current drug class over different mechanisms
+   - Only offer if dose reduction and cessation already recommended
 
-For STABLE patients ON the lowest tier (Tier ${lowestTierInFormulary}):
-1. **First Priority**: Dose reduction stepping (0% → 25% → 50% max)
-2. **Second Priority**: If already 50% reduced OR need to fill 3 recs, offer CEASE_BIOLOGIC with non-biologic alternative (Zoryve for psoriasis, Opzelura for atopic dermatitis)
-3. **Last Resort**: CONTINUE_CURRENT only if no optimization possible
+**CRITICAL**: The priority is dose reduction → cessation → tier optimization, regardless of current tier position
 
 For UNSTABLE patients on REDUCED dose:
 1. **Primary Goal**: Keep patient on dose reduction while improving control
