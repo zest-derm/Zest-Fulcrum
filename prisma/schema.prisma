@@ -80,6 +80,8 @@ enum RecommendationType {
   OPTIMIZE_CURRENT
   THERAPEUTIC_SWITCH
   CONTINUE_CURRENT
+  CEASE_BIOLOGIC
+  ADD_TOPICAL
 }
 
 enum DecisionStatus {
