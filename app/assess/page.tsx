@@ -783,5 +783,3 @@ export default function AssessmentPage() {
     </div>
   );
 }
-
-export const dynamic = 'force-dynamic';
