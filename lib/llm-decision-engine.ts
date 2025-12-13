@@ -256,8 +256,8 @@ Patient Information:
 - Diagnosis: ${assessment.diagnosis}
 - Current medication: ${currentDrug || 'None (not on biologic)'}
 - Current dose status: ${currentDoseReduction === 0 ? 'Standard dosing' : `${currentDoseReduction}% dose-reduced`}
-- DLQI Score: ${assessment.dlqiScore} (0-30 scale, lower is better)
-- Months stable: ${assessment.monthsStable}
+- Disease control: ${assessment.isStable ? 'Stable' : 'Unstable'}
+- Months at current stability: ${assessment.monthsStable}
 - Has psoriatic arthritis: ${assessment.hasPsoriaticArthritis ? 'Yes' : 'No'}
 - Additional notes: ${assessment.additionalNotes || 'None'}
 
@@ -761,8 +761,8 @@ PATIENT INFORMATION
 - Current medication: ${currentBrandName || 'None (not on biologic)'}${currentDrug && currentDrug !== currentBrandName ? ` (generic: ${currentDrug})` : ''}
 - Current dosing: ${currentDosingInfo}
 - Diagnosis: ${assessment.diagnosis}
-- DLQI Score: ${assessment.dlqiScore}
-- Months stable: ${assessment.monthsStable}
+- Disease control: ${assessment.isStable ? 'Stable' : 'Unstable'}
+- Months at current stability: ${assessment.monthsStable}
 - Psoriatic arthritis: ${assessment.hasPsoriaticArthritis ? 'YES - prefer drugs with PsA indication' : 'NO'}
 - Additional notes: ${assessment.additionalNotes || 'None'}
 - Quadrant: ${triage.quadrant}
