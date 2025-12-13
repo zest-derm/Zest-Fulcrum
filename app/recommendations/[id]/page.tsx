@@ -317,6 +317,11 @@ export default async function RecommendationsPage({ params }: PageProps) {
             {currentBiologic && currentDrugTier && (
               <> • Tier {currentDrugTier}</>
             )}
+            {currentBiologic && assessment.recommendations[0] && (
+              <> • <span className={assessment.recommendations[0].isFormularyOptimal ? 'text-green-700 font-medium' : 'text-amber-700 font-medium'}>
+                {assessment.recommendations[0].isFormularyOptimal ? 'Optimal' : 'Suboptimal'}
+              </span></>
+            )}
           </span>
         </div>
       </div>
