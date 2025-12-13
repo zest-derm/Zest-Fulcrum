@@ -34,6 +34,12 @@ export default function BiologicInput({
 
   const biologicOptions = useMemo(() => getBiologicOptions(), []);
 
+  // Check if current frequency is a custom one (not in standard list)
+  const isCustomFrequencyValue = useMemo(() => {
+    if (!value.frequency || !value.drugName) return false;
+    return !standardFrequencies.some(f => f.label === value.frequency);
+  }, [value.frequency, value.drugName, standardFrequencies]);
+
   // Filter options based on search term
   const filteredOptions = useMemo(() => {
     if (!searchTerm) return biologicOptions;
@@ -228,7 +234,7 @@ export default function BiologicInput({
           Frequency {required && '*'}
           {isFrequencyDisabled && <span className="ml-1 text-xs text-gray-400">(select biologic first)</span>}
         </label>
-        {!customFrequency ? (
+        {!customFrequency && !isCustomFrequencyValue ? (
           <div className="space-y-2">
             <select
               className={`input w-full ${isFrequencyDisabled ? 'bg-gray-200 text-gray-500 cursor-not-allowed opacity-60' : ''}`}
@@ -261,6 +267,30 @@ export default function BiologicInput({
                 ✓ {standardFrequencies.length} standard frequenc{standardFrequencies.length !== 1 ? 'ies' : 'y'} available
               </p>
             )}
+          </div>
+        ) : isCustomFrequencyValue ? (
+          <div className="space-y-2">
+            <div className="input w-full bg-blue-50 border-blue-300 flex items-center justify-between">
+              <span className="font-medium text-blue-900">{value.frequency}</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setCustomFrequency(true);
+                }}
+                className="text-xs text-blue-600 hover:text-blue-800 underline"
+              >
+                Edit
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                handleFrequencyChange('');
+              }}
+              className="text-xs text-gray-600 hover:text-gray-800 underline"
+            >
+              ← Back to standard frequencies
+            </button>
           </div>
         ) : (
           <div className="space-y-2">
