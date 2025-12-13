@@ -251,6 +251,34 @@ export default async function RecommendationsPage({ params }: PageProps) {
     }).format(numAmount);
   };
 
+  // Extract topical medication from rationale for CEASE_BIOLOGIC recommendations
+  const extractTopicalFromRationale = (rationale: string): string => {
+    const topicals = ['Zoryve', 'Opzelura', 'tacrolimus', 'roflumilast', 'ruxolitinib'];
+    for (const topical of topicals) {
+      if (rationale.toLowerCase().includes(topical.toLowerCase())) {
+        // Extract the medication name and any surrounding context (like "roflumilast cream")
+        const regex = new RegExp(`(${topical}[^.,;)]*(?:cream|ointment|gel)?)`, 'i');
+        const match = rationale.match(regex);
+        if (match) {
+          return match[1].trim();
+        }
+        return topical;
+      }
+    }
+    return 'Non-biologic therapy';
+  };
+
+  // Bold medication names in rationale text
+  const boldMedications = (text: string) => {
+    const medications = ['Zoryve', 'Opzelura', 'tacrolimus', 'roflumilast', 'ruxolitinib'];
+    let result = text;
+    for (const med of medications) {
+      const regex = new RegExp(`(${med}[^.,;)]*(?:cream|ointment|gel)?)`, 'gi');
+      result = result.replace(regex, '<strong>$1</strong>');
+    }
+    return result;
+  };
+
   const currentBiologic = assessment.patient?.currentBiologics?.[0];
   const quadrantLabel = assessment.recommendations[0]?.quadrant.replace(/_/g, ' ').toUpperCase();
 
@@ -365,7 +393,11 @@ export default async function RecommendationsPage({ params }: PageProps) {
                     </div>
                     <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded">
                       <p className="text-sm font-semibold text-blue-900">
-                        Recommended Dosing: {rec.newDose} {rec.newFrequency}
+                        {rec.type === 'CEASE_BIOLOGIC' ? (
+                          <>Recommended Alternative: {extractTopicalFromRationale(rec.rationale)}</>
+                        ) : (
+                          <>Recommended Dosing: {rec.newDose} {rec.newFrequency}</>
+                        )}
                       </p>
                     </div>
                     <p className="text-xs text-gray-500 mt-2">
@@ -449,7 +481,7 @@ export default async function RecommendationsPage({ params }: PageProps) {
                   <FileText className="w-4 h-4 mr-1" />
                   Clinical Rationale
                 </h4>
-                <p className="text-sm text-gray-700">{rec.rationale}</p>
+                <p className="text-sm text-gray-700" dangerouslySetInnerHTML={{ __html: boldMedications(rec.rationale) }} />
               </div>
 
               {/* Monitoring Plan */}
