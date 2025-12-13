@@ -234,65 +234,7 @@ export default function BiologicInput({
           Frequency {required && '*'}
           {isFrequencyDisabled && <span className="ml-1 text-xs text-gray-400">(select biologic first)</span>}
         </label>
-        {!customFrequency && !isCustomFrequencyValue ? (
-          <div className="space-y-2">
-            <select
-              className={`input w-full ${isFrequencyDisabled ? 'bg-gray-200 text-gray-500 cursor-not-allowed opacity-60' : ''}`}
-              value={value.frequency}
-              onChange={(e) => {
-                if (e.target.value === 'custom') {
-                  setCustomFrequency(true);
-                } else {
-                  handleFrequencyChange(e.target.value);
-                }
-              }}
-              disabled={isFrequencyDisabled}
-              required={required && !isFrequencyDisabled}
-              style={isFrequencyDisabled ? { pointerEvents: 'none' } : {}}
-            >
-              <option value="">
-                {isFrequencyDisabled ? '-- Disabled --' : 'Select frequency *'}
-              </option>
-              {standardFrequencies.map((freq) => (
-                <option key={freq.value} value={freq.label}>
-                  {freq.label}
-                </option>
-              ))}
-              {!isFrequencyDisabled && (
-                <option value="custom">➕ Custom frequency...</option>
-              )}
-            </select>
-            {value.drugName && standardFrequencies.length > 0 && (
-              <p className="text-xs text-green-600">
-                ✓ {standardFrequencies.length} standard frequenc{standardFrequencies.length !== 1 ? 'ies' : 'y'} available
-              </p>
-            )}
-          </div>
-        ) : isCustomFrequencyValue ? (
-          <div className="space-y-2">
-            <div className="input w-full bg-blue-50 border-blue-300 flex items-center justify-between">
-              <span className="font-medium text-blue-900">{value.frequency}</span>
-              <button
-                type="button"
-                onClick={() => {
-                  setCustomFrequency(true);
-                }}
-                className="text-xs text-blue-600 hover:text-blue-800 underline"
-              >
-                Edit
-              </button>
-            </div>
-            <button
-              type="button"
-              onClick={() => {
-                handleFrequencyChange('');
-              }}
-              className="text-xs text-gray-600 hover:text-gray-800 underline"
-            >
-              ← Back to standard frequencies
-            </button>
-          </div>
-        ) : (
+        {customFrequency ? (
           <div className="space-y-2">
             <div className="flex gap-2">
               <div className="flex-1">
@@ -341,6 +283,64 @@ export default function BiologicInput({
                 Done
               </button>
             </div>
+          </div>
+        ) : isCustomFrequencyValue ? (
+          <div className="space-y-2">
+            <div className="input w-full bg-blue-50 border-blue-300 flex items-center justify-between">
+              <span className="font-medium text-blue-900">{value.frequency}</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setCustomFrequency(true);
+                }}
+                className="text-xs text-blue-600 hover:text-blue-800 underline"
+              >
+                Edit
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                handleFrequencyChange('');
+              }}
+              className="text-xs text-gray-600 hover:text-gray-800 underline"
+            >
+              ← Back to standard frequencies
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            <select
+              className={`input w-full ${isFrequencyDisabled ? 'bg-gray-200 text-gray-500 cursor-not-allowed opacity-60' : ''}`}
+              value={value.frequency}
+              onChange={(e) => {
+                if (e.target.value === 'custom') {
+                  setCustomFrequency(true);
+                } else {
+                  handleFrequencyChange(e.target.value);
+                }
+              }}
+              disabled={isFrequencyDisabled}
+              required={required && !isFrequencyDisabled}
+              style={isFrequencyDisabled ? { pointerEvents: 'none' } : {}}
+            >
+              <option value="">
+                {isFrequencyDisabled ? '-- Disabled --' : 'Select frequency *'}
+              </option>
+              {standardFrequencies.map((freq) => (
+                <option key={freq.value} value={freq.label}>
+                  {freq.label}
+                </option>
+              ))}
+              {!isFrequencyDisabled && (
+                <option value="custom">➕ Custom frequency...</option>
+              )}
+            </select>
+            {value.drugName && standardFrequencies.length > 0 && (
+              <p className="text-xs text-green-600">
+                ✓ {standardFrequencies.length} standard frequenc{standardFrequencies.length !== 1 ? 'ies' : 'y'} available
+              </p>
+            )}
           </div>
         )}
       </div>
