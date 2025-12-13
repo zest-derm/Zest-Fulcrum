@@ -154,7 +154,7 @@ interface LLMRecommendation {
 }
 
 /**
- * Check if patient is stable but for insufficient duration
+ * Check if patient is in remission but for insufficient duration
  * These patients should continue current therapy, not optimize yet
  */
 function isStableShortDuration(isStable: boolean, monthsStable: number): boolean {
@@ -199,19 +199,19 @@ function determineQuadrantAndStatus(
     };
   }
 
-  // Check for stable but insufficient duration - special case
+  // Check for remission but insufficient duration - special case
   if (isStableShortDuration(isStableInput, monthsStable)) {
     const isFormularyOptimal = currentFormularyDrug
       ? currentFormularyDrug.tier === 1
       : false;
     return {
-      isStable: true, // Patient IS stable, just not for long enough
+      isStable: true, // Patient IS in remission, just not for long enough
       isFormularyOptimal,
       quadrant: 'stable_short_duration'
     };
   }
 
-  // Stability: Based on clinician judgment and ≥3 months stable
+  // Remission: Based on clinician judgment and ≥3 months in remission
   const isStable = isStableInput && monthsStable >= 3;
 
   // Formulary optimal: Tier 1 (regardless of PA requirement for CURRENT therapy)
@@ -256,8 +256,8 @@ Patient Information:
 - Diagnosis: ${assessment.diagnosis}
 - Current medication: ${currentDrug || 'None (not on biologic)'}
 - Current dose status: ${currentDoseReduction === 0 ? 'Standard dosing' : `${currentDoseReduction}% dose-reduced`}
-- Disease control: ${assessment.isStable ? 'Stable' : 'Unstable'}
-- Months at current stability: ${assessment.monthsStable}
+- Disease control: ${assessment.isStable ? 'In remission' : 'Active disease'}
+- Months in current remission: ${assessment.monthsStable}
 - Has psoriatic arthritis: ${assessment.hasPsoriaticArthritis ? 'Yes' : 'No'}
 - Additional notes: ${assessment.additionalNotes || 'None'}
 
@@ -268,34 +268,34 @@ Formulary Tier Structure (RELATIVE TIER LOGIC):
 - Requires PA: ${formularyDrug?.requiresPA || 'Unknown'}
 - Classification: ${quadrant.replace(/_/g, ' ').toUpperCase()}
 
-KEY PRINCIPLE: For stable patients, prioritize de-escalation (dose reduction, cessation) before class switches.
+KEY PRINCIPLE: For patients in remission, prioritize de-escalation (dose reduction, cessation) before class switches.
 
 COMPREHENSIVE OPTIMIZATION LOGIC:
-- For stable patients (≥3 months): Dose reduction FIRST, then cessation, THEN tier switches if needed
-- For stable patients ON lowest tier: Recommend dose reduction stepping (0% → 25% → 50% max), then cessation
-- For unstable + dose-reduced patients: Return to standard dosing FIRST
-- For stable <3 months: CAN switch tiers, CANNOT dose reduce yet
+- For patients in remission (≥3 months): Dose reduction FIRST, then cessation, THEN tier switches if needed
+- For patients in remission ON lowest tier: Recommend dose reduction stepping (0% → 25% → 50% max), then cessation
+- For active disease + dose-reduced patients: Return to standard dosing FIRST
+- For patients in remission <3 months: CAN switch tiers, CANNOT dose reduce yet
 
 DOSE REDUCTION STEPPING:
 - Maximum reduction: 50% from standard
 - Step 1: Standard (0%) → 25% reduction
 - Step 2: 25% → 50% reduction (maximum)
-- Only for stable ≥3 months
+- Only for patients in remission ≥3 months
 - Clinical evidence should be retrieved
 
 CONTINUE CURRENT only when:
-- Stable <3 months (too early to optimize), OR
-- Already dose-reduced + on lowest tier + stable
+- In remission <3 months (too early to optimize), OR
+- Already dose-reduced + on lowest tier + in remission
 
 Based on quadrant "${quadrant}", current dose ${currentDoseReduction}%, tier ${currentTier} of ${lowestTierInFormulary}, determine flags:
 
 **Flag Setting Rules:**
-- "canDoseReduce": true if stable ≥3 months AND dose reduction not yet maxed (not at 50%)
-- "shouldSwitch": true ONLY if stable ≥3 months AND already recommended dose reduction AND cessation
+- "canDoseReduce": true if in remission ≥3 months AND dose reduction not yet maxed (not at 50%)
+- "shouldSwitch": true ONLY if in remission ≥3 months AND already recommended dose reduction AND cessation
 - "needsInitiation": true if not currently on biologic
-- "shouldContinueCurrent": true if stable <3 months OR already 50% reduced + on lowest tier
+- "shouldContinueCurrent": true if in remission <3 months OR already 50% reduced + on lowest tier
 
-**CRITICAL**: For stable patients ≥3 months, canDoseReduce should be TRUE (prioritize de-escalation first)
+**CRITICAL**: For patients in remission ≥3 months, canDoseReduce should be TRUE (prioritize de-escalation first)
 
 Return ONLY a JSON object with this exact structure:
 {
@@ -761,8 +761,8 @@ PATIENT INFORMATION
 - Current medication: ${currentBrandName || 'None (not on biologic)'}${currentDrug && currentDrug !== currentBrandName ? ` (generic: ${currentDrug})` : ''}
 - Current dosing: ${currentDosingInfo}
 - Diagnosis: ${assessment.diagnosis}
-- Disease control: ${assessment.isStable ? 'Stable' : 'Unstable'}
-- Months at current stability: ${assessment.monthsStable}
+- Disease control: ${assessment.isStable ? 'In remission' : 'Active disease'}
+- Months in current remission: ${assessment.monthsStable}
 - Psoriatic arthritis: ${assessment.hasPsoriaticArthritis ? 'YES - prefer drugs with PsA indication' : 'NO'}
 - Additional notes: ${assessment.additionalNotes || 'None'}
 - Quadrant: ${triage.quadrant}
@@ -794,10 +794,10 @@ ${evidenceText}
 OPTIMIZATION ALGORITHM (DE-ESCALATION PRIORITY)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-**PRIMARY PRINCIPLE: For ALL stable patients >3 months: Dose reduction FIRST, cessation SECOND, tier switches LAST**
+**PRIMARY PRINCIPLE: For ALL patients in remission >3 months: Dose reduction FIRST, cessation SECOND, tier switches LAST**
 **Rationale: De-escalation maintains disease control while minimizing medication burden before considering class changes**
 
-For STABLE patients (stable ≥3 months) regardless of tier:
+For patients IN REMISSION (in remission ≥3 months) regardless of tier:
 1. **First Priority**: DOSE_REDUCTION - Start dose reduction stepping (0% → 25% reduction)
    - If already 25% reduced: Offer 50% reduction as next step
    - If already 50% reduced: Maximum reached, move to next priority (cessation)
@@ -811,26 +811,26 @@ For STABLE patients (stable ≥3 months) regardless of tier:
    - Only offer AFTER dose reduction and cessation already recommended
 
 **CRITICAL ORDERING**:
-- Stable patients NOT maximally dose-reduced: Dose reduction → (cessation or tier switch)
-- Stable patients MAXIMALLY dose-reduced (50%): Cessation → tier switch
+- Patients in remission NOT maximally dose-reduced: Dose reduction → (cessation or tier switch)
+- Patients in remission MAXIMALLY dose-reduced (50%): Cessation → tier switch
 - The priority is ALWAYS: dose reduction → cessation → tier optimization
 
-For UNSTABLE patients on REDUCED dose:
+For patients with ACTIVE DISEASE on REDUCED dose:
 1. **Primary Goal**: Keep patient on dose reduction while improving control
 2. **First Priority**: ADD_TOPICAL - add Zoryve, Opzelura, or tacrolimus (lowest tier topical) to current dose-reduced biologic
 3. **Second Priority**: If ADD_TOPICAL insufficient, consider returning to standard dosing
 4. **Third Priority**: Switch to different biologic at standard dosing (lower tier if available)
-5. **Never recommend**: Dose reduction for unstable patients
+5. **Never recommend**: Dose reduction for patients with active disease
 
-For UNSTABLE patients on STANDARD dose:
+For patients with ACTIVE DISEASE on STANDARD dose:
 1. Recommend most efficacious drugs in best available tier
 2. Prioritize mechanism switching (TNF → IL-17/IL-23 for better efficacy)
 3. **Never dose reduce**
 
-For patients stable <3 months:
+For patients in remission <3 months:
 1. **CONTINUE_CURRENT** - too early to optimize (need ${3 - assessment.monthsStable} more months)
 2. Can consider tier switches for cost savings, but NO dose reduction yet
-3. Mention dose reduction as future option once 3 months stability achieved
+3. Mention dose reduction as future option once 3 months of remission achieved
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 DOSE REDUCTION STEPPING RULES
@@ -890,8 +890,8 @@ Use these types:
 - **SWITCH_TO_PREFERRED**: Switching to different drug in lower tier (formulary optimization)
 - **THERAPEUTIC_SWITCH**: Switching mechanism for efficacy (e.g., TNF → IL-23 for better control)
 - **DOSE_REDUCTION**: Extending interval of current drug (must cite RAG evidence)
-- **CEASE_BIOLOGIC**: Discontinue biologic therapy (only for stable patients after exhausting other options, must recommend non-biologic alternative)
-- **ADD_TOPICAL**: Add topical therapy to dose-reduced biologic (for unstable patients on reduced dose, to maintain dose reduction while improving control)
+- **CEASE_BIOLOGIC**: Discontinue biologic therapy (only for patients in remission after exhausting other options, must recommend non-biologic alternative)
+- **ADD_TOPICAL**: Add topical therapy to dose-reduced biologic (for patients with active disease on reduced dose, to maintain dose reduction while improving control)
 - **CONTINUE_CURRENT**: Continue current therapy unchanged (only when truly no optimization possible)
 - **OPTIMIZE_CURRENT**: Minor adjustments to current therapy
 
@@ -905,8 +905,8 @@ EVIDENCE REQUIREMENTS
 - Include specific findings from studies
 - If 5 papers relevant, cite all 5. If only 2 relevant, cite those 2 accurately
 - NEVER hallucinate citations. Accuracy > citation count.
-- Do NOT mention DLQI scores - simply state "stable" or "unstable" with duration
-- Example: "Patient has been stable for 3 months on standard dosing. Multiple studies support adalimumab dose reduction in stable psoriasis. The CONDOR trial (Atalay et al.) demonstrated that extending dosing intervals to every 4 weeks was noninferior to usual care. Additional studies by Piaserico et al. showed successful down-titration with maintenance of clearance."
+- Do NOT mention DLQI scores - simply state "in remission" or "active disease" with duration
+- Example: "Patient has been in remission for 3 months on standard dosing. Multiple studies support adalimumab dose reduction in patients with remission. The CONDOR trial (Atalay et al.) demonstrated that extending dosing intervals to every 4 weeks was noninferior to usual care. Additional studies by Piaserico et al. showed successful down-titration with maintenance of clearance."
 
 **FORMULARY SWITCHES** - NO RAG needed:
 - Cost optimization is self-evident business case
@@ -944,8 +944,8 @@ For EACH recommendation provide:
    - NEVER use "Per label" for biologics - always specify actual interval
 5. **Rationale**:
    - DOSE_REDUCTION: Cite all relevant papers from Clinical Evidence section
-   - CEASE_BIOLOGIC: Explain that patient has been stable for extended period, has exhausted other optimization options, and recommend transitioning to non-biologic therapy (Zoryve/Opzelura/tacrolimus)
-   - ADD_TOPICAL: Explain that adding topical allows maintaining dose-reduced biologic while improving control for unstable patient
+   - CEASE_BIOLOGIC: Explain that patient has been in remission for extended period, has exhausted other optimization options, and recommend transitioning to non-biologic therapy (Zoryve/Opzelura/tacrolimus)
+   - ADD_TOPICAL: Explain that adding topical allows maintaining dose-reduced biologic while improving control for patient with active disease
    - SWITCHES: Clear clinical reasoning (cost savings, efficacy, formulary optimization)
    - Parse additionalNotes for comorbidities to justify drug selection
 6. **Monitoring plan**: Specific follow-up plan (e.g., "Reassess at 3 and 6 months")

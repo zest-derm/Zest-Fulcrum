@@ -624,10 +624,10 @@ export default function AssessmentPage() {
           </div>
         </div>
 
-        {/* Patient Stability */}
+        {/* Remission Status */}
         <div>
           <div className="flex items-center justify-between mb-3">
-            <label className="label mb-0">Patient Stability *</label>
+            <label className="label mb-0">Remission Status *</label>
             <button
               type="button"
               onClick={() => setShowStabilityHelp(true)}
@@ -636,7 +636,7 @@ export default function AssessmentPage() {
               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
-              How do I define stability?
+              How do I define remission?
             </button>
           </div>
           <div className="space-y-2">
@@ -649,7 +649,7 @@ export default function AssessmentPage() {
                 className="mr-3"
               />
               <div>
-                <div className="font-medium">Patient is stable</div>
+                <div className="font-medium">Patient is in remission</div>
                 <div className="text-xs text-gray-500">Disease is well-controlled with current therapy</div>
               </div>
             </label>
@@ -662,16 +662,16 @@ export default function AssessmentPage() {
                 className="mr-3"
               />
               <div>
-                <div className="font-medium">Patient is not stable</div>
+                <div className="font-medium">Disease is active</div>
                 <div className="text-xs text-gray-500">Disease is not adequately controlled</div>
               </div>
             </label>
           </div>
         </div>
 
-        {/* Time at Stability */}
+        {/* Time in Remission */}
         <div>
-          <label className="label">Time at Current Stability (months) *</label>
+          <label className="label">Time in Current Remission (months) *</label>
           <input
             type="number"
             min="0"
@@ -768,13 +768,13 @@ export default function AssessmentPage() {
         </div>
       )}
 
-      {/* Stability Decision Support Modal */}
+      {/* Remission Decision Support Modal */}
       {showStabilityHelp && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 shadow-xl max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-start mb-4">
               <h3 className="text-lg font-semibold text-gray-900">
-                How to Define Stability in Psoriasis
+                How to Define Remission in Psoriasis
               </h3>
               <button
                 onClick={() => setShowStabilityHelp(false)}
@@ -788,10 +788,10 @@ export default function AssessmentPage() {
 
             <div className="space-y-4 text-sm text-gray-700">
               <div>
-                <h4 className="font-semibold text-gray-900 mb-2">Clinical Definition of Stability</h4>
+                <h4 className="font-semibold text-gray-900 mb-2">Clinical Definition of Remission</h4>
                 <p>
-                  A patient is considered <strong>stable</strong> when their psoriasis is well-controlled on current therapy,
-                  with minimal disease activity and impact on quality of life. Consider the patient stable if they meet most of the following criteria:
+                  A patient is considered <strong>in remission</strong> when their psoriasis is well-controlled on current therapy,
+                  with minimal disease activity and impact on quality of life. Consider the patient in remission if they meet most of the following criteria:
                 </p>
               </div>
 
@@ -799,14 +799,14 @@ export default function AssessmentPage() {
                 <h4 className="font-semibold text-blue-900 mb-2">DLQI (Dermatology Life Quality Index)</h4>
                 <p className="mb-2">Score range: 0-30 (lower is better)</p>
                 <ul className="list-disc list-inside space-y-1 text-blue-900">
-                  <li><strong>0-1:</strong> No impact on life - Patient is stable</li>
-                  <li><strong>2-5:</strong> Small impact on life - Patient is stable</li>
-                  <li><strong>6-10:</strong> Moderate impact - Consider not stable</li>
-                  <li><strong>11-20:</strong> Large impact - Patient is not stable</li>
-                  <li><strong>21-30:</strong> Extremely large impact - Patient is not stable</li>
+                  <li><strong>0-1:</strong> No impact on life - Patient is in remission</li>
+                  <li><strong>2-5:</strong> Small impact on life - Patient is in remission</li>
+                  <li><strong>6-10:</strong> Moderate impact - Consider disease is active</li>
+                  <li><strong>11-20:</strong> Large impact - Disease is active</li>
+                  <li><strong>21-30:</strong> Extremely large impact - Disease is active</li>
                 </ul>
                 <p className="mt-2 text-xs text-blue-800">
-                  <strong>Rule of thumb:</strong> DLQI ≤ 5 typically indicates stable disease
+                  <strong>Rule of thumb:</strong> DLQI ≤ 5 typically indicates remission
                 </p>
               </div>
 
@@ -814,9 +814,9 @@ export default function AssessmentPage() {
                 <h4 className="font-semibold text-green-900 mb-2">PASI (Psoriasis Area and Severity Index)</h4>
                 <p className="mb-2">Score range: 0-72 (lower is better)</p>
                 <ul className="list-disc list-inside space-y-1 text-green-900">
-                  <li><strong>0-5:</strong> Mild psoriasis - Patient is stable</li>
-                  <li><strong>5-10:</strong> Moderate psoriasis - May be stable depending on patient goals</li>
-                  <li><strong>10+:</strong> Severe psoriasis - Patient is not stable</li>
+                  <li><strong>0-5:</strong> Mild psoriasis - Patient is in remission</li>
+                  <li><strong>5-10:</strong> Moderate psoriasis - May be in remission depending on patient goals</li>
+                  <li><strong>10+:</strong> Severe psoriasis - Disease is active</li>
                 </ul>
                 <p className="mt-2 text-xs text-green-800">
                   <strong>Clinical trials standard:</strong> PASI 75 (75% improvement from baseline) or better indicates good response
@@ -827,16 +827,16 @@ export default function AssessmentPage() {
                 <h4 className="font-semibold text-purple-900 mb-2">BSA (Body Surface Area)</h4>
                 <p className="mb-2">Percentage of body covered by psoriasis</p>
                 <ul className="list-disc list-inside space-y-1 text-purple-900">
-                  <li><strong>&lt;3%:</strong> Mild psoriasis - Patient is likely stable</li>
-                  <li><strong>3-10%:</strong> Moderate psoriasis - Evaluate if stable based on location and impact</li>
-                  <li><strong>&gt;10%:</strong> Severe psoriasis - Patient is not stable</li>
+                  <li><strong>&lt;3%:</strong> Mild psoriasis - Patient is likely in remission</li>
+                  <li><strong>3-10%:</strong> Moderate psoriasis - Evaluate if in remission based on location and impact</li>
+                  <li><strong>&gt;10%:</strong> Severe psoriasis - Disease is active</li>
                 </ul>
               </div>
 
               <div>
                 <h4 className="font-semibold text-gray-900 mb-2">Additional Considerations</h4>
                 <ul className="list-disc list-inside space-y-1">
-                  <li>Duration of stability: Patient should maintain control for at least 3 months</li>
+                  <li>Duration of remission: Patient should maintain control for at least 3 months</li>
                   <li>Special areas: Psoriasis on palms, soles, scalp, or genitals has greater impact even with lower BSA</li>
                   <li>Patient satisfaction: Patient reports being satisfied with current level of control</li>
                   <li>No recent flares: No significant disease worsening in past 3-6 months</li>
