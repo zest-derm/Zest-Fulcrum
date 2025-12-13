@@ -241,3 +241,5 @@ export default function PatientsPage() {
     </div>
   );
 }
+
+export const dynamic = 'force-dynamic';

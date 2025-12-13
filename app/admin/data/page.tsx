@@ -634,3 +634,5 @@ export default function DataManagementPage() {
     </div>
   );
 }
+
+export const dynamic = 'force-dynamic';
