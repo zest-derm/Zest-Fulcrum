@@ -299,7 +299,7 @@ model Provider {
 
 model Assessment {
   id                     String         @id @default(cuid())
-  mrn                    String         // Medical Record Number (5-9 digits)
+  mrn                    String?        // Medical Record Number (5-9 digits) - optional for legacy data
   patientId              String?        // Optional to support PHI-free assessments
   planId                 String?        // Insurance plan for PHI-free assessments
   providerId             String?        // Provider who created assessment
