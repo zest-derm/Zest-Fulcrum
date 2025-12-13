@@ -296,7 +296,7 @@ export default function BiologicInput({
                 className="flex-1 text-sm px-3 py-2 bg-primary-600 text-white rounded hover:bg-primary-700 font-medium"
                 onClick={() => {
                   handleCustomFrequencyChange();
-                  setCustomFrequency(false);
+                  // Keep editor open so user can see the result
                 }}
               >
                 ✓ Apply
@@ -306,9 +306,14 @@ export default function BiologicInput({
                 className="flex-1 text-sm px-3 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300"
                 onClick={() => setCustomFrequency(false)}
               >
-                Cancel
+                Done
               </button>
             </div>
+            {value.frequency && (
+              <p className="text-xs text-green-600 mt-2">
+                ✓ Frequency set to: {value.frequency}
+              </p>
+            )}
           </div>
         )}
       </div>
