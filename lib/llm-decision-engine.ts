@@ -901,7 +901,8 @@ EVIDENCE REQUIREMENTS
 - Include specific findings from studies
 - If 5 papers relevant, cite all 5. If only 2 relevant, cite those 2 accurately
 - NEVER hallucinate citations. Accuracy > citation count.
-- Example: "Multiple studies support adalimumab dose reduction in stable psoriasis. The CONDOR trial (Atalay et al.) demonstrated that extending dosing intervals to every 4 weeks was noninferior to usual care based on DLQI. Additional studies by Piaserico et al. showed successful down-titration with maintenance of clearance."
+- Do NOT mention DLQI scores - simply state "stable" or "unstable" with duration
+- Example: "Patient has been stable for 3 months on standard dosing. Multiple studies support adalimumab dose reduction in stable psoriasis. The CONDOR trial (Atalay et al.) demonstrated that extending dosing intervals to every 4 weeks was noninferior to usual care. Additional studies by Piaserico et al. showed successful down-titration with maintenance of clearance."
 
 **FORMULARY SWITCHES** - NO RAG needed:
 - Cost optimization is self-evident business case
