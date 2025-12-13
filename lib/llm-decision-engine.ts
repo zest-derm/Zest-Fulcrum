@@ -794,22 +794,26 @@ ${evidenceText}
 OPTIMIZATION ALGORITHM (DE-ESCALATION PRIORITY)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-**PRIMARY PRINCIPLE: For ALL stable patients >3 months: Dose reduction FIRST, cessation SECOND, class switches LAST**
+**PRIMARY PRINCIPLE: For ALL stable patients >3 months: Dose reduction FIRST, cessation SECOND, tier switches LAST**
 **Rationale: De-escalation maintains disease control while minimizing medication burden before considering class changes**
 
 For STABLE patients (stable ≥3 months) regardless of tier:
 1. **First Priority**: DOSE_REDUCTION - Start dose reduction stepping (0% → 25% reduction)
    - If already 25% reduced: Offer 50% reduction as next step
-   - If already 50% reduced: Maximum reached, move to next priority
+   - If already 50% reduced: Maximum reached, move to next priority (cessation)
 2. **Second Priority**: CEASE_BIOLOGIC - Discontinue biologic with non-biologic alternative
+   - CRITICAL: For patients at 50% dose reduction (maximally reduced), cessation is NEXT priority before any tier switches
    - Must recommend Zoryve (roflumilast) for psoriasis or Opzelura (ruxolitinib) for atopic dermatitis
-   - Only after dose reduction options exhausted or if need to fill 3 recommendations
+   - Cessation comes BEFORE tier switches for maximally dose-reduced patients
 3. **Third Priority**: Class switches to lower-tier options (if not on lowest tier)
    - Switch to Tier ${lowestTierInFormulary} (lowest available), then ${availableTiers[1] || 'N/A'} if needed
    - Prioritize biosimilars of current drug class over different mechanisms
-   - Only offer if dose reduction and cessation already recommended
+   - Only offer AFTER dose reduction and cessation already recommended
 
-**CRITICAL**: The priority is dose reduction → cessation → tier optimization, regardless of current tier position
+**CRITICAL ORDERING**:
+- Stable patients NOT maximally dose-reduced: Dose reduction → (cessation or tier switch)
+- Stable patients MAXIMALLY dose-reduced (50%): Cessation → tier switch
+- The priority is ALWAYS: dose reduction → cessation → tier optimization
 
 For UNSTABLE patients on REDUCED dose:
 1. **Primary Goal**: Keep patient on dose reduction while improving control
