@@ -810,10 +810,12 @@ For patients IN REMISSION (in remission ≥3 months) regardless of tier:
    - Prioritize biosimilars of current drug class over different mechanisms
    - Only offer AFTER dose reduction and cessation already recommended
 
-**CRITICAL ORDERING**:
-- Patients in remission NOT maximally dose-reduced: Dose reduction → (cessation or tier switch)
-- Patients in remission MAXIMALLY dose-reduced (50%): Cessation → tier switch
-- The priority is ALWAYS: dose reduction → cessation → tier optimization
+**CRITICAL ORDERING - MUST FOLLOW THIS EXACT SEQUENCE**:
+- ALL patients in remission ≥3 months: Dose reduction → cessation → tier switches
+- Patients NOT yet maximally dose-reduced: Recommend dose reduction as option 1, cessation as option 2, tier switch as option 3
+- Patients MAXIMALLY dose-reduced (50%): Recommend cessation as option 1, tier switches as options 2-3
+- **NEVER skip cessation to go directly to tier switches** - cessation MUST be offered before any tier optimization
+- The priority is ALWAYS: dose reduction → cessation → tier optimization (NO EXCEPTIONS)
 
 For patients with ACTIVE DISEASE on REDUCED dose:
 1. **Primary Goal**: Keep patient on dose reduction while improving control
@@ -920,7 +922,20 @@ EVIDENCE REQUIREMENTS
 OUTPUT REQUIREMENTS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Generate EXACTLY 3 specific recommendations ranked by cost savings and clinical benefit.
+Generate EXACTLY 3 specific recommendations following the de-escalation hierarchy strictly:
+
+**For patients in remission ≥3 months**:
+- Option 1: DOSE_REDUCTION (if not at 50% yet)
+- Option 2: CEASE_BIOLOGIC (must include non-biologic alternative)
+- Option 3: Tier switch (biosimilar or lower tier)
+- **NEVER skip cessation to recommend tier switches directly**
+
+**For patients in remission <3 months**:
+- Recommend CONTINUE_CURRENT or tier switches only (NO dose reduction)
+
+**For patients with active disease**:
+- If on reduced dose: ADD_TOPICAL, then return to standard dosing, then switches
+- If on standard dose: Recommend efficacious drugs in best tier
 
 For EACH recommendation provide:
 1. **Type**: One of the types listed above
