@@ -7,6 +7,8 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const {
+      mrn,
+      providerId,
       patientId,
       planId,
       currentBiologic,
@@ -20,6 +22,13 @@ export async function POST(request: NextRequest) {
     } = body;
 
     // Validate required fields
+    if (!mrn) {
+      return NextResponse.json(
+        { error: 'MRN is required' },
+        { status: 400 }
+      );
+    }
+
     if (!planId) {
       return NextResponse.json(
         { error: 'Insurance plan is required' },
@@ -34,6 +43,8 @@ export async function POST(request: NextRequest) {
     // Create assessment
     const assessment = await prisma.assessment.create({
       data: {
+        mrn: mrn,
+        providerId: providerId || null,
         patientId: patientId || null,
         planId: planId,
         diagnosis,

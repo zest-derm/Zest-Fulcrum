@@ -280,13 +280,29 @@ model Contraindication {
 }
 
 // ============================================
+// PROVIDER MANAGEMENT
+// ============================================
+
+model Provider {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  assessments      Assessment[]
+  providerFeedback ProviderFeedback[]
+}
+
+// ============================================
 // ASSESSMENT & RECOMMENDATIONS
 // ============================================
 
 model Assessment {
   id                     String         @id @default(cuid())
+  mrn                    String         // Medical Record Number (5-9 digits)
   patientId              String?        // Optional to support PHI-free assessments
   planId                 String?        // Insurance plan for PHI-free assessments
+  providerId             String?        // Provider who created assessment
   diagnosis              DiagnosisType
   hasPsoriaticArthritis  Boolean        @default(false)
   dlqiScore              Int            // 0-30
@@ -297,12 +313,16 @@ model Assessment {
   currentBiologicFrequency String?      // Current biologic frequency
   assessedAt             DateTime       @default(now())
 
-  patient         Patient?         @relation(fields: [patientId], references: [id], onDelete: Cascade)
-  plan            InsurancePlan?   @relation(fields: [planId], references: [id])
-  recommendations Recommendation[]
+  patient          Patient?           @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  plan             InsurancePlan?     @relation(fields: [planId], references: [id])
+  provider         Provider?          @relation(fields: [providerId], references: [id])
+  recommendations  Recommendation[]
+  providerFeedback ProviderFeedback[]
 
   @@index([patientId])
   @@index([planId])
+  @@index([providerId])
+  @@index([mrn])
 }
 
 model Recommendation {
@@ -352,12 +372,45 @@ model Recommendation {
   createdAt               DateTime           @default(now())
   updatedAt               DateTime           @updatedAt
 
-  assessment Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
-  patient    Patient?   @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  assessment       Assessment         @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  patient          Patient?           @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  providerFeedback ProviderFeedback[]
 
   @@index([assessmentId])
   @@index([patientId])
   @@index([status])
+}
+
+// ============================================
+// PROVIDER FEEDBACK & QUALITY TRACKING
+// ============================================
+
+model ProviderFeedback {
+  id                   String   @id @default(cuid())
+  assessmentId         String
+  recommendationId     String?  // Which recommendation was accepted (null if declined all)
+  mrn                  String   // Copy from assessment for easier querying
+  providerId           String?  // Which provider made the decision
+
+  // Which option: 1, 2, 3, or null if declined all
+  selectedRank         Int?
+
+  // Free text feedback (all optional)
+  reasonForChoice      String?  @db.Text  // Why this option was chosen
+  reasonAgainstFirst   String?  @db.Text  // Why first wasn't chosen (for rank 2/3)
+  reasonForDeclineAll  String?  @db.Text  // Why all declined
+  alternativePlan      String?  @db.Text  // What provider plans instead
+
+  createdAt            DateTime @default(now())
+
+  assessment     Assessment      @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  recommendation Recommendation? @relation(fields: [recommendationId], references: [id])
+  provider       Provider?       @relation(fields: [providerId], references: [id])
+
+  @@index([mrn])
+  @@index([assessmentId])
+  @@index([selectedRank])
+  @@index([providerId])
 }
 
 // ============================================

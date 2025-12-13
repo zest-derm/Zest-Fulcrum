@@ -21,10 +21,16 @@ interface InsurancePlan {
   payerName: string;
 }
 
+interface Provider {
+  id: string;
+  name: string;
+}
+
 export default function AssessmentPage() {
   const router = useRouter();
   const [patients, setPatients] = useState<Patient[]>([]);
   const [insurancePlans, setInsurancePlans] = useState<InsurancePlan[]>([]);
+  const [providers, setProviders] = useState<Provider[]>([]);
   const [loading, setLoading] = useState(false);
   const [claimsBiologic, setClaimsBiologic] = useState<any>(null); // Biologic from claims data
   const [showOverrideWarning, setShowOverrideWarning] = useState(false);
@@ -33,6 +39,8 @@ export default function AssessmentPage() {
   const [showStabilityHelp, setShowStabilityHelp] = useState(false); // Stability decision support modal
 
   const [formData, setFormData] = useState({
+    mrn: '',
+    providerId: '',
     patientId: '',
     planId: '',
     notOnBiologic: false,
@@ -81,6 +89,24 @@ export default function AssessmentPage() {
       .catch(err => {
         console.error('Failed to fetch insurance plans:', err);
         setInsurancePlans([]);
+      });
+  }, []);
+
+  // Fetch providers
+  useEffect(() => {
+    fetch('/api/providers')
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data)) {
+          setProviders(data);
+        } else {
+          console.error('Expected array of providers, got:', data);
+          setProviders([]);
+        }
+      })
+      .catch(err => {
+        console.error('Failed to fetch providers:', err);
+        setProviders([]);
       });
   }, []);
 
@@ -199,6 +225,17 @@ export default function AssessmentPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    // Validate MRN
+    if (!formData.mrn) {
+      alert('Please enter a Medical Record Number (MRN).');
+      return;
+    }
+    const mrnDigits = formData.mrn.replace(/\D/g, ''); // Remove non-digits
+    if (mrnDigits.length < 5 || mrnDigits.length > 9) {
+      alert('MRN must be 5-9 digits.');
+      return;
+    }
+
     // Validate insurance plan is selected
     if (!formData.planId) {
       alert('Please select an insurance plan.');
@@ -263,6 +300,8 @@ export default function AssessmentPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          mrn: mrnDigits, // Send only digits
+          providerId: formData.providerId || null,
           patientId: formData.patientId || null,
           planId: formData.planId,
           currentBiologic: formData.notOnBiologic ? null : {
@@ -310,6 +349,49 @@ export default function AssessmentPage() {
       </p>
 
       <form onSubmit={handleSubmit} className="card space-y-6">
+        {/* MRN Input */}
+        <div>
+          <label className="label">Medical Record Number (MRN) *</label>
+          <input
+            type="text"
+            className="input w-full"
+            value={formData.mrn}
+            onChange={(e) => {
+              // Only allow digits
+              const value = e.target.value.replace(/\D/g, '');
+              if (value.length <= 9) {
+                setFormData(prev => ({ ...prev, mrn: value }));
+              }
+            }}
+            placeholder="Enter 5-9 digit MRN"
+            required
+            maxLength={9}
+          />
+          <p className="text-xs text-gray-500 mt-1">
+            Required: 5-9 digits
+          </p>
+        </div>
+
+        {/* Provider Selection */}
+        <div>
+          <label className="label">Provider (optional)</label>
+          <select
+            className="input w-full"
+            value={formData.providerId}
+            onChange={(e) => setFormData(prev => ({ ...prev, providerId: e.target.value }))}
+          >
+            <option value="">Select a provider</option>
+            {providers.map(provider => (
+              <option key={provider.id} value={provider.id}>
+                {provider.name}
+              </option>
+            ))}
+          </select>
+          <p className="text-xs text-gray-500 mt-1">
+            Select the provider performing this assessment
+          </p>
+        </div>
+
         {/* Patient Selection */}
         <div>
           <label className="label">Patient (optional)</label>

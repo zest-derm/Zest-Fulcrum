@@ -8,6 +8,7 @@ async function main() {
   console.log('Seeding database...');
 
   // Clean existing data
+  await prisma.providerFeedback.deleteMany();
   await prisma.recommendation.deleteMany();
   await prisma.assessment.deleteMany();
   await prisma.contraindication.deleteMany();
@@ -17,6 +18,18 @@ async function main() {
   await prisma.formularyDrug.deleteMany();
   await prisma.insurancePlan.deleteMany();
   await prisma.knowledgeDocument.deleteMany();
+  await prisma.provider.deleteMany();
+
+  // Create providers
+  const providers = await prisma.provider.createMany({
+    data: [
+      { name: 'Neil Jairath' },
+      { name: 'Rachel Day' },
+      { name: 'Pearl Dhaliwal' },
+    ],
+  });
+
+  console.log('Created providers');
 
   // Create insurance plan
   const plan = await prisma.insurancePlan.create({

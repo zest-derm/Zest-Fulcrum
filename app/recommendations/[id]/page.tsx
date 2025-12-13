@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { AlertCircle, TrendingDown, DollarSign, FileText } from 'lucide-react';
 import { Suspense } from 'react';
 import ContraindicatedDrugsToggle from './ContraindicatedDrugsToggle';
+import RecommendationFeedback from './RecommendationFeedback';
 
 interface PageProps {
   params: { id: string };
@@ -507,6 +508,26 @@ export default async function RecommendationsPage({ params }: PageProps) {
           );
         })}
       </div>
+
+      {/* Feedback Component */}
+      {assessment.recommendations.length > 0 && (
+        <div className="card mt-6">
+          <h3 className="text-lg font-semibold mb-4">Provider Decision</h3>
+          <p className="text-sm text-gray-600 mb-4">
+            Please indicate which recommendation you are accepting, or decline all if none are appropriate.
+          </p>
+          <RecommendationFeedback
+            assessmentId={assessment.id}
+            mrn={assessment.mrn}
+            providerId={assessment.providerId}
+            recommendations={assessment.recommendations.map(r => ({
+              id: r.id,
+              rank: r.rank,
+              drugName: r.drugName,
+            }))}
+          />
+        </div>
+      )}
 
       {assessment.recommendations.length === 0 && (
         <div className="card text-center py-12">
