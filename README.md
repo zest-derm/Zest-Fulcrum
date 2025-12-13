@@ -1,5 +1,7 @@
 # Zest Biologic Decision Support System
 
+A clinical decision support system for optimizing biologic therapy costs while maintaining patient outcomes.
+
 ## To Commit Changes from Codespace
 
 git add "path"
