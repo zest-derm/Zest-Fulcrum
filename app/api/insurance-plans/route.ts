@@ -8,13 +8,17 @@ export async function GET() {
         id: true,
         planName: true,
         payerName: true,
+        formularyVersion: true,
         _count: {
           select: {
             formularyDrugs: true,
           },
         },
       },
-      orderBy: { planName: 'asc' },
+      orderBy: [
+        { planName: 'asc' },
+        { formularyVersion: 'desc' },
+      ],
     });
 
     return NextResponse.json(plans);

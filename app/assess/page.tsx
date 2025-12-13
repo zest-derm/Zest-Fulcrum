@@ -19,6 +19,7 @@ interface InsurancePlan {
   id: string;
   planName: string;
   payerName: string;
+  formularyVersion: string | null;
 }
 
 interface Provider {
@@ -37,6 +38,8 @@ export default function AssessmentPage() {
   const [pendingBiologicChange, setPendingBiologicChange] = useState<string | null>(null);
   const [showHighCostOnly, setShowHighCostOnly] = useState(false); // Filter for high cost patients
   const [showStabilityHelp, setShowStabilityHelp] = useState(false); // Stability decision support modal
+  const [selectedPlanName, setSelectedPlanName] = useState<string>('');
+  const [selectedFormularyVersion, setSelectedFormularyVersion] = useState<string>('');
 
   const [formData, setFormData] = useState({
     mrn: '',
@@ -114,6 +117,8 @@ export default function AssessmentPage() {
   const handlePatientChange = async (patientId: string) => {
     if (!patientId) {
       setFormData(prev => ({ ...prev, patientId: '', planId: '' }));
+      setSelectedPlanName('');
+      setSelectedFormularyVersion('');
       setClaimsBiologic(null);
       return;
     }
@@ -149,6 +154,15 @@ export default function AssessmentPage() {
 
       // Store claims biologic for override detection
       setClaimsBiologic(biologicFromClaims);
+
+      // Auto-populate two-step plan selection if patient has a plan
+      if (patientData.planId) {
+        const patientPlan = insurancePlans.find(p => p.id === patientData.planId);
+        if (patientPlan) {
+          setSelectedPlanName(patientPlan.planName);
+          setSelectedFormularyVersion(patientPlan.formularyVersion || '');
+        }
+      }
 
       // Auto-populate form with claims data if available
       if (biologicFromClaims) {
@@ -436,26 +450,69 @@ export default function AssessmentPage() {
           </p>
         </div>
 
-        {/* Insurance Plan Selection */}
-        <div>
-          <label className="label">Insurance Plan *</label>
-          <select
-            className="input w-full"
-            value={formData.planId}
-            onChange={(e) => setFormData(prev => ({ ...prev, planId: e.target.value }))}
-            required
-          >
-            <option value="">Select an insurance plan</option>
-            {insurancePlans.map(plan => (
-              <option key={plan.id} value={plan.id}>
-                {plan.planName} ({plan.payerName})
+        {/* Insurance Plan Selection - Two Step */}
+        <div className="grid md:grid-cols-2 gap-4">
+          {/* Step 1: Select Plan Name */}
+          <div>
+            <label className="label">Insurance Plan Name *</label>
+            <select
+              className="input w-full"
+              value={selectedPlanName}
+              onChange={(e) => {
+                setSelectedPlanName(e.target.value);
+                setSelectedFormularyVersion(''); // Reset formulary version when plan changes
+                setFormData(prev => ({ ...prev, planId: '' })); // Reset planId
+              }}
+              required
+            >
+              <option value="">Select plan name</option>
+              {Array.from(new Set(insurancePlans.map(p => p.planName))).map(name => (
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Step 2: Select Formulary Version */}
+          <div>
+            <label className="label">
+              Formulary Version *
+              {!selectedPlanName && <span className="ml-1 text-xs text-gray-400">(select plan first)</span>}
+            </label>
+            <select
+              className={`input w-full ${!selectedPlanName ? 'bg-gray-200 text-gray-500 cursor-not-allowed opacity-60' : ''}`}
+              value={selectedFormularyVersion}
+              onChange={(e) => {
+                setSelectedFormularyVersion(e.target.value);
+                // Find matching plan and set planId
+                const matchingPlan = insurancePlans.find(
+                  p => p.planName === selectedPlanName && p.formularyVersion === e.target.value
+                );
+                if (matchingPlan) {
+                  setFormData(prev => ({ ...prev, planId: matchingPlan.id }));
+                }
+              }}
+              disabled={!selectedPlanName}
+              required
+              style={!selectedPlanName ? { pointerEvents: 'none' } : {}}
+            >
+              <option value="">
+                {!selectedPlanName ? '-- Disabled --' : 'Select formulary version'}
               </option>
-            ))}
-          </select>
-          <p className="text-xs text-gray-500 mt-1">
-            {formData.patientId ? 'Auto-populated from patient record' : 'Required to determine formulary and coverage'}
-          </p>
+              {selectedPlanName && insurancePlans
+                .filter(p => p.planName === selectedPlanName)
+                .map(plan => (
+                  <option key={plan.id} value={plan.formularyVersion || ''}>
+                    {plan.formularyVersion || 'Default'}
+                  </option>
+                ))}
+            </select>
+          </div>
         </div>
+        <p className="text-xs text-gray-500 mt-1">
+          {formData.patientId ? 'Auto-populated from patient record' : 'Required to determine formulary and coverage'}
+        </p>
 
         {/* Current Biologic */}
         <div>
