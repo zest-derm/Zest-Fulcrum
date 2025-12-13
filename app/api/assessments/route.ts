@@ -41,6 +41,10 @@ export async function POST(request: NextRequest) {
         dlqiScore: dlqiScore,
         monthsStable: Number(monthsStable),
         additionalNotes,
+        // Store current biologic info for PHI-free assessments
+        currentBiologicName: currentBiologic?.drugName || null,
+        currentBiologicDose: currentBiologic?.dose || null,
+        currentBiologicFrequency: currentBiologic?.frequency || null,
       },
     });
 

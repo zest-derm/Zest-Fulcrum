@@ -292,6 +292,9 @@ model Assessment {
   dlqiScore              Int            // 0-30
   monthsStable           Int
   additionalNotes        String?
+  currentBiologicName    String?        // Current biologic drug name (for PHI-free assessments)
+  currentBiologicDose    String?        // Current biologic dose
+  currentBiologicFrequency String?      // Current biologic frequency
   assessedAt             DateTime       @default(now())
 
   patient         Patient?         @relation(fields: [patientId], references: [id], onDelete: Cascade)

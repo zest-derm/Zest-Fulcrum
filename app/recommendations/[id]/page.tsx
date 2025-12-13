@@ -279,37 +279,13 @@ export default async function RecommendationsPage({ params }: PageProps) {
     return result;
   };
 
-  // Get current biologic from patient record OR from recommendations (for PHI-free assessments)
-  let currentBiologic = assessment.patient?.currentBiologics?.[0];
-
-  // For PHI-free assessments, extract current biologic from recommendations
-  if (!currentBiologic && assessment.recommendations.length > 0) {
-    // Find a recommendation that references the current drug (DOSE_REDUCTION, CONTINUE_CURRENT, etc.)
-    const referenceRec = assessment.recommendations.find(
-      rec => rec.type === 'DOSE_REDUCTION' || rec.type === 'CONTINUE_CURRENT' || rec.type === 'OPTIMIZE_CURRENT'
-    );
-
-    if (referenceRec) {
-      // Extract from the recommendation's rationale or drugName
-      // For dose reduction, the drugName is the current drug
-      currentBiologic = {
-        drugName: referenceRec.drugName,
-        dose: 'Standard dose', // We don't store the original dose, but we know it's being reduced
-        frequency: 'Per label',
-      } as any;
-    } else {
-      // Try to extract from any recommendation's rationale mentioning "currently on"
-      const anyRec = assessment.recommendations[0];
-      const currentlyOnMatch = anyRec?.rationale.match(/currently on (\w+(?:\s+\w+)?)/i);
-      if (currentlyOnMatch) {
-        currentBiologic = {
-          drugName: currentlyOnMatch[1],
-          dose: 'Standard dose',
-          frequency: 'Per label',
-        } as any;
-      }
-    }
-  }
+  // Get current biologic from patient record OR from assessment (for PHI-free assessments)
+  const currentBiologic = assessment.patient?.currentBiologics?.[0] ||
+    (assessment.currentBiologicName ? {
+      drugName: assessment.currentBiologicName,
+      dose: assessment.currentBiologicDose,
+      frequency: assessment.currentBiologicFrequency,
+    } : null);
 
   const quadrantLabel = assessment.recommendations[0]?.quadrant.replace(/_/g, ' ').toUpperCase();
 
