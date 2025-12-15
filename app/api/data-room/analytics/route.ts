@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
         providerFeedback: true,
       },
       orderBy: {
-        createdAt: 'desc',
+        assessedAt: 'desc',
       },
     });
 
@@ -150,7 +150,7 @@ export async function GET(request: NextRequest) {
       dlqiScore: assessment.dlqiScore,
       monthsStable: assessment.monthsStable,
       isRemission: assessment.dlqiScore !== null && assessment.dlqiScore <= 5,
-      createdAt: assessment.createdAt,
+      assessedAt: assessment.assessedAt,
       patientName: assessment.patient
         ? `${assessment.patient.firstName} ${assessment.patient.lastName}`.trim() || null
         : null,

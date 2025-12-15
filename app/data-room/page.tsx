@@ -53,7 +53,7 @@ interface AssessmentDetail {
   dlqiScore: number | null;
   monthsStable: number | null;
   isRemission: boolean;
-  createdAt: string;
+  assessedAt: string;
   patientName: string | null;
   recommendations: Array<{
     id: string;
@@ -98,7 +98,7 @@ type SortKey =
   | 'acceptanceRate'
   | 'diagnosis'
   | 'mrn'
-  | 'createdAt';
+  | 'assessedAt';
 type SortOrder = 'asc' | 'desc';
 type ViewMode = 'summary' | 'provider' | 'diagnosis' | 'individual';
 
@@ -114,7 +114,7 @@ export default function DataRoom() {
   const [filterProvider, setFilterProvider] = useState<string>('all');
   const [filterDiagnosis, setFilterDiagnosis] = useState<string>('all');
   const [filterRemission, setFilterRemission] = useState<string>('all');
-  const [sortKey, setSortKey] = useState<SortKey>('createdAt');
+  const [sortKey, setSortKey] = useState<SortKey>('assessedAt');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
 
   // Check authentication on mount
@@ -206,7 +206,7 @@ export default function DataRoom() {
         const totalSavings = a.recommendations
           .filter((r) => r.status === 'ACCEPTED')
           .reduce((sum, r) => sum + (r.annualSavings || 0), 0);
-        csvContent += `"${a.mrn}","${a.providerName}","${formatDiagnosis(a.diagnosis)}","${a.isRemission ? 'Remission' : 'Active'}","${new Date(a.createdAt).toLocaleDateString()}",${a.recommendations.length},${a.recommendations.filter((r) => r.status === 'ACCEPTED').length},${a.recommendations.filter((r) => r.status === 'REJECTED').length},$${totalSavings.toLocaleString()}\n`;
+        csvContent += `"${a.mrn}","${a.providerName}","${formatDiagnosis(a.diagnosis)}","${a.isRemission ? 'Remission' : 'Active'}","${new Date(a.assessedAt).toLocaleDateString()}",${a.recommendations.length},${a.recommendations.filter((r) => r.status === 'ACCEPTED').length},${a.recommendations.filter((r) => r.status === 'REJECTED').length},$${totalSavings.toLocaleString()}\n`;
       });
       filename = 'individual-assessments.csv';
     }
@@ -297,9 +297,9 @@ export default function DataRoom() {
           } else if (sortKey === 'name') {
             aVal = a.providerName;
             bVal = b.providerName;
-          } else if (sortKey === 'createdAt') {
-            aVal = new Date(a.createdAt).getTime();
-            bVal = new Date(b.createdAt).getTime();
+          } else if (sortKey === 'assessedAt') {
+            aVal = new Date(a.assessedAt).getTime();
+            bVal = new Date(b.assessedAt).getTime();
           } else if (sortKey === 'acceptanceRate') {
             const aAccepted = a.recommendations.filter(
               (r) => r.status === 'ACCEPTED'
@@ -1064,11 +1064,11 @@ export default function DataRoom() {
                     </th>
                     <th
                       className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-                      onClick={() => handleSort('createdAt')}
+                      onClick={() => handleSort('assessedAt')}
                     >
                       <div className="flex items-center gap-2">
                         Date
-                        {sortKey === 'createdAt' &&
+                        {sortKey === 'assessedAt' &&
                           (sortOrder === 'asc' ? (
                             <ChevronUp className="h-4 w-4" />
                           ) : (
@@ -1125,7 +1125,7 @@ export default function DataRoom() {
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {new Date(assessment.createdAt).toLocaleDateString()}
+                          {new Date(assessment.assessedAt).toLocaleDateString()}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                           {totalRecs}
