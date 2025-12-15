@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 
 import Link from "next/link";
-import { ArrowRight, Upload, FileText, TrendingDown, MapPin } from "lucide-react";
+import { ArrowRight, Upload, FileText, TrendingDown, MapPin, BarChart3 } from "lucide-react";
 
 export default function HomePage() {
   return (
@@ -23,7 +23,7 @@ export default function HomePage() {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
 
-      <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8 mb-12">
+      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8 mb-12">
         <div className="card card-hover transform transition-all duration-200 hover:-translate-y-1">
           <Upload className="w-12 h-12 text-primary-600 mb-4 transition-transform duration-200 group-hover:scale-110" />
           <h3 className="mb-2">Upload Data</h3>
@@ -65,6 +65,28 @@ export default function HomePage() {
           </p>
           <Link href="/admin/analytics" className="text-primary-600 hover:text-primary-700 font-medium flex items-center transition-all duration-150 group">
             View Analytics <ArrowRight className="w-4 h-4 ml-1 transition-transform duration-150 group-hover:translate-x-1" />
+          </Link>
+        </div>
+
+        <div className="card card-hover transform transition-all duration-200 hover:-translate-y-1">
+          <BarChart3 className="w-12 h-12 text-primary-600 mb-4 transition-transform duration-200 group-hover:scale-110" />
+          <h3 className="mb-2">Data Room</h3>
+          <p className="text-gray-600 mb-4">
+            View provider decisions, AI recommendation acceptance rates, and detailed analytics by diagnosis and remission status
+          </p>
+          <Link href="/data-room" className="text-primary-600 hover:text-primary-700 font-medium flex items-center transition-all duration-150 group">
+            Access Data Room <ArrowRight className="w-4 h-4 ml-1 transition-transform duration-150 group-hover:translate-x-1" />
+          </Link>
+        </div>
+
+        <div className="card card-hover transform transition-all duration-200 hover:-translate-y-1">
+          <Upload className="w-12 h-12 text-primary-600 mb-4 transition-transform duration-200 group-hover:scale-110" />
+          <h3 className="mb-2">Manage Data</h3>
+          <p className="text-gray-600 mb-4">
+            Upload and manage formulary data, insurance plans, and clinical knowledge base
+          </p>
+          <Link href="/admin/data" className="text-primary-600 hover:text-primary-700 font-medium flex items-center transition-all duration-150 group">
+            Manage Data <ArrowRight className="w-4 h-4 ml-1 transition-transform duration-150 group-hover:translate-x-1" />
           </Link>
         </div>
       </div>

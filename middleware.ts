@@ -21,16 +21,32 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Check for auth cookie
+  // Check for main auth cookie
   const authCookie = request.cookies.get('zest-auth');
 
-  if (authCookie?.value === 'authenticated') {
-    return NextResponse.next();
+  if (authCookie?.value !== 'authenticated') {
+    // Redirect to login page
+    const loginUrl = new URL('/login', request.url);
+    return NextResponse.redirect(loginUrl);
   }
 
-  // Redirect to login page
-  const loginUrl = new URL('/login', request.url);
-  return NextResponse.redirect(loginUrl);
+  // Additional check for data room routes
+  if (pathname.startsWith('/data-room') || pathname.startsWith('/api/data-room/analytics')) {
+    const dataRoomAuth = request.cookies.get('data-room-auth');
+
+    if (dataRoomAuth?.value !== 'authenticated') {
+      // Redirect to data room page (which will show password prompt)
+      if (pathname.startsWith('/api/data-room/analytics')) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      }
+      // For the page itself, allow through so it can show the password prompt
+      if (pathname === '/data-room') {
+        return NextResponse.next();
+      }
+    }
+  }
+
+  return NextResponse.next();
 }
 
 export const config = {

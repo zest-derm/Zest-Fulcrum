@@ -1,0 +1,1155 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import {
+  TrendingUp,
+  TrendingDown,
+  Users,
+  Activity,
+  DollarSign,
+  Filter,
+  Search,
+  Download,
+  ChevronDown,
+  ChevronUp,
+  BarChart3,
+} from 'lucide-react';
+
+interface ProviderStats {
+  name: string;
+  totalAssessments: number;
+  totalRecommendations: number;
+  acceptedCount: number;
+  declinedCount: number;
+  acceptanceRate: number;
+  byDiagnosis: Record<string, { accepted: number; total: number }>;
+  byRemission: {
+    remission: { accepted: number; total: number };
+    active: { accepted: number; total: number };
+  };
+}
+
+interface DiagnosisStats {
+  diagnosis: string;
+  totalAssessments: number;
+  totalRecommendations: number;
+  acceptedCount: number;
+  declinedCount: number;
+  acceptanceRate: number;
+  byRemission: {
+    remission: { accepted: number; total: number };
+    active: { accepted: number; total: number };
+  };
+}
+
+interface AssessmentDetail {
+  id: string;
+  mrn: string;
+  providerName: string;
+  providerId: string | null;
+  diagnosis: string;
+  hasPsoriaticArthritis: boolean;
+  dlqiScore: number | null;
+  monthsStable: number | null;
+  isRemission: boolean;
+  createdAt: string;
+  patientName: string | null;
+  recommendations: Array<{
+    id: string;
+    rank: number;
+    type: string;
+    drugName: string;
+    status: string;
+    annualSavings: number | null;
+    currentAnnualCost: number | null;
+    recommendedAnnualCost: number | null;
+    savingsPercent: number | null;
+    contraindicated: boolean;
+    decidedAt: string | null;
+  }>;
+  feedback: Array<{
+    id: string;
+    selectedRank: number | null;
+    reasonForChoice: string | null;
+    reasonAgainstFirst: string | null;
+    reasonForDeclineAll: string | null;
+    alternativePlan: string | null;
+  }>;
+}
+
+interface AnalyticsData {
+  summary: {
+    totalAssessments: number;
+    totalRecommendations: number;
+    acceptedCount: number;
+    declinedCount: number;
+    overallAcceptanceRate: number;
+    totalPotentialSavings: number;
+  };
+  byProvider: ProviderStats[];
+  byDiagnosis: DiagnosisStats[];
+  assessmentDetails: AssessmentDetail[];
+}
+
+type SortKey =
+  | 'name'
+  | 'totalAssessments'
+  | 'acceptanceRate'
+  | 'diagnosis'
+  | 'mrn'
+  | 'createdAt';
+type SortOrder = 'asc' | 'desc';
+type ViewMode = 'summary' | 'provider' | 'diagnosis' | 'individual';
+
+export default function DataRoom() {
+  const router = useRouter();
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [password, setPassword] = useState('');
+  const [authError, setAuthError] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState<AnalyticsData | null>(null);
+  const [viewMode, setViewMode] = useState<ViewMode>('summary');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterProvider, setFilterProvider] = useState<string>('all');
+  const [filterDiagnosis, setFilterDiagnosis] = useState<string>('all');
+  const [filterRemission, setFilterRemission] = useState<string>('all');
+  const [sortKey, setSortKey] = useState<SortKey>('createdAt');
+  const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
+
+  // Check authentication on mount
+  useEffect(() => {
+    checkAuth();
+  }, []);
+
+  const checkAuth = async () => {
+    try {
+      const response = await fetch('/api/data-room/analytics');
+      if (response.ok) {
+        const analyticsData = await response.json();
+        setData(analyticsData);
+        setIsAuthenticated(true);
+      } else if (response.status === 401) {
+        setIsAuthenticated(false);
+      }
+    } catch (error) {
+      console.error('Auth check failed:', error);
+      setIsAuthenticated(false);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthError('');
+
+    try {
+      const response = await fetch('/api/data-room/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password }),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        setIsAuthenticated(true);
+        await checkAuth(); // Load data
+      } else {
+        setAuthError('Invalid password');
+      }
+    } catch (error) {
+      console.error('Login error:', error);
+      setAuthError('Authentication failed');
+    }
+  };
+
+  const handleLogout = async () => {
+    await fetch('/api/data-room/auth', { method: 'DELETE' });
+    setIsAuthenticated(false);
+    setPassword('');
+    setData(null);
+  };
+
+  const handleSort = (key: SortKey) => {
+    if (sortKey === key) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortKey(key);
+      setSortOrder('desc');
+    }
+  };
+
+  const exportToCSV = () => {
+    if (!data) return;
+
+    let csvContent = '';
+    let filename = '';
+
+    if (viewMode === 'provider') {
+      csvContent = 'Provider,Total Assessments,Total Recommendations,Accepted,Declined,Acceptance Rate\n';
+      filteredProviders.forEach((p) => {
+        csvContent += `"${p.name}",${p.totalAssessments},${p.totalRecommendations},${p.acceptedCount},${p.declinedCount},${p.acceptanceRate.toFixed(1)}%\n`;
+      });
+      filename = 'provider-analytics.csv';
+    } else if (viewMode === 'diagnosis') {
+      csvContent = 'Diagnosis,Total Assessments,Total Recommendations,Accepted,Declined,Acceptance Rate\n';
+      filteredDiagnoses.forEach((d) => {
+        csvContent += `"${formatDiagnosis(d.diagnosis)}",${d.totalAssessments},${d.totalRecommendations},${d.acceptedCount},${d.declinedCount},${d.acceptanceRate.toFixed(1)}%\n`;
+      });
+      filename = 'diagnosis-analytics.csv';
+    } else if (viewMode === 'individual') {
+      csvContent =
+        'MRN,Provider,Diagnosis,Remission Status,Date,Recommendations,Accepted,Declined,Total Savings\n';
+      filteredAssessments.forEach((a) => {
+        const totalSavings = a.recommendations
+          .filter((r) => r.status === 'ACCEPTED')
+          .reduce((sum, r) => sum + (r.annualSavings || 0), 0);
+        csvContent += `"${a.mrn}","${a.providerName}","${formatDiagnosis(a.diagnosis)}","${a.isRemission ? 'Remission' : 'Active'}","${new Date(a.createdAt).toLocaleDateString()}",${a.recommendations.length},${a.recommendations.filter((r) => r.status === 'ACCEPTED').length},${a.recommendations.filter((r) => r.status === 'REJECTED').length},$${totalSavings.toLocaleString()}\n`;
+      });
+      filename = 'individual-assessments.csv';
+    }
+
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    window.URL.revokeObjectURL(url);
+  };
+
+  const formatDiagnosis = (diagnosis: string) => {
+    const map: Record<string, string> = {
+      PSORIASIS: 'Psoriasis',
+      ATOPIC_DERMATITIS: 'Atopic Dermatitis',
+      HIDRADENITIS_SUPPURATIVA: 'Hidradenitis Suppurativa',
+      OTHER: 'Other',
+      UNKNOWN: 'Unknown',
+    };
+    return map[diagnosis] || diagnosis;
+  };
+
+  // Filter and sort data
+  const filteredProviders = data
+    ? data.byProvider
+        .filter((p) =>
+          p.name.toLowerCase().includes(searchTerm.toLowerCase())
+        )
+        .sort((a, b) => {
+          const aVal = a[sortKey as keyof ProviderStats];
+          const bVal = b[sortKey as keyof ProviderStats];
+          const multiplier = sortOrder === 'asc' ? 1 : -1;
+          return (aVal > bVal ? 1 : -1) * multiplier;
+        })
+    : [];
+
+  const filteredDiagnoses = data
+    ? data.byDiagnosis
+        .filter((d) =>
+          formatDiagnosis(d.diagnosis)
+            .toLowerCase()
+            .includes(searchTerm.toLowerCase())
+        )
+        .sort((a, b) => {
+          const aVal = a[sortKey as keyof DiagnosisStats];
+          const bVal = b[sortKey as keyof DiagnosisStats];
+          const multiplier = sortOrder === 'asc' ? 1 : -1;
+          return (aVal > bVal ? 1 : -1) * multiplier;
+        })
+    : [];
+
+  const filteredAssessments = data
+    ? data.assessmentDetails
+        .filter((a) => {
+          const matchesSearch =
+            a.mrn.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            a.providerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            (a.patientName &&
+              a.patientName.toLowerCase().includes(searchTerm.toLowerCase()));
+
+          const matchesProvider =
+            filterProvider === 'all' || a.providerName === filterProvider;
+
+          const matchesDiagnosis =
+            filterDiagnosis === 'all' || a.diagnosis === filterDiagnosis;
+
+          const matchesRemission =
+            filterRemission === 'all' ||
+            (filterRemission === 'remission' && a.isRemission) ||
+            (filterRemission === 'active' && !a.isRemission);
+
+          return (
+            matchesSearch &&
+            matchesProvider &&
+            matchesDiagnosis &&
+            matchesRemission
+          );
+        })
+        .sort((a, b) => {
+          let aVal: any;
+          let bVal: any;
+
+          if (sortKey === 'mrn') {
+            aVal = a.mrn;
+            bVal = b.mrn;
+          } else if (sortKey === 'name') {
+            aVal = a.providerName;
+            bVal = b.providerName;
+          } else if (sortKey === 'createdAt') {
+            aVal = new Date(a.createdAt).getTime();
+            bVal = new Date(b.createdAt).getTime();
+          } else if (sortKey === 'acceptanceRate') {
+            const aAccepted = a.recommendations.filter(
+              (r) => r.status === 'ACCEPTED'
+            ).length;
+            const bAccepted = b.recommendations.filter(
+              (r) => r.status === 'ACCEPTED'
+            ).length;
+            aVal =
+              a.recommendations.length > 0
+                ? (aAccepted / a.recommendations.length) * 100
+                : 0;
+            bVal =
+              b.recommendations.length > 0
+                ? (bAccepted / b.recommendations.length) * 100
+                : 0;
+          }
+
+          const multiplier = sortOrder === 'asc' ? 1 : -1;
+          return (aVal > bVal ? 1 : -1) * multiplier;
+        })
+    : [];
+
+  // Login screen
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-primary-50 to-white flex items-center justify-center p-4">
+        <div className="bg-white rounded-lg shadow-xl p-8 max-w-md w-full">
+          <div className="flex items-center justify-center mb-6">
+            <BarChart3 className="h-12 w-12 text-primary-600" />
+          </div>
+          <h1 className="text-3xl font-bold text-center mb-2">Data Room</h1>
+          <p className="text-gray-600 text-center mb-6">
+            Enter password to access analytics dashboard
+          </p>
+
+          <form onSubmit={handleLogin}>
+            <div className="mb-4">
+              <label htmlFor="password" className="label">
+                Password
+              </label>
+              <input
+                type="password"
+                id="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="input"
+                placeholder="Enter data room password"
+                autoFocus
+              />
+            </div>
+
+            {authError && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md text-red-700 text-sm">
+                {authError}
+              </div>
+            )}
+
+            <button type="submit" className="btn btn-primary w-full">
+              Access Data Room
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
+  if (loading || !data) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading analytics data...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <div className="bg-white border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <BarChart3 className="h-8 w-8 text-primary-600" />
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900">Data Room</h1>
+                <p className="text-sm text-gray-600">
+                  Provider Decision Analytics & Insights
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={handleLogout}
+              className="text-sm text-gray-600 hover:text-gray-900"
+            >
+              Logout
+            </button>
+          </div>
+
+          {/* View Mode Tabs */}
+          <div className="mt-4 flex gap-2 overflow-x-auto">
+            {[
+              { key: 'summary' as ViewMode, label: 'Summary', icon: Activity },
+              { key: 'provider' as ViewMode, label: 'By Provider', icon: Users },
+              {
+                key: 'diagnosis' as ViewMode,
+                label: 'By Diagnosis',
+                icon: BarChart3,
+              },
+              {
+                key: 'individual' as ViewMode,
+                label: 'Individual Assessments',
+                icon: Search,
+              },
+            ].map(({ key, label, icon: Icon }) => (
+              <button
+                key={key}
+                onClick={() => setViewMode(key)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
+                  viewMode === key
+                    ? 'bg-primary-600 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                <Icon className="h-4 w-4" />
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Summary View */}
+        {viewMode === 'summary' && (
+          <div className="space-y-6">
+            {/* Key Metrics */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="bg-white rounded-lg shadow p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600">Total Assessments</p>
+                    <p className="text-3xl font-bold text-gray-900 mt-1">
+                      {data.summary.totalAssessments}
+                    </p>
+                  </div>
+                  <Activity className="h-12 w-12 text-primary-600" />
+                </div>
+              </div>
+
+              <div className="bg-white rounded-lg shadow p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600">
+                      AI Acceptance Rate
+                    </p>
+                    <p className="text-3xl font-bold text-green-600 mt-1">
+                      {data.summary.overallAcceptanceRate.toFixed(1)}%
+                    </p>
+                    <p className="text-xs text-gray-500 mt-1">
+                      {data.summary.acceptedCount} of{' '}
+                      {data.summary.totalRecommendations} recommendations
+                    </p>
+                  </div>
+                  <TrendingUp className="h-12 w-12 text-green-600" />
+                </div>
+              </div>
+
+              <div className="bg-white rounded-lg shadow p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600">
+                      Total Potential Savings
+                    </p>
+                    <p className="text-3xl font-bold text-blue-600 mt-1">
+                      ${data.summary.totalPotentialSavings.toLocaleString()}
+                    </p>
+                    <p className="text-xs text-gray-500 mt-1">
+                      From accepted recommendations
+                    </p>
+                  </div>
+                  <DollarSign className="h-12 w-12 text-blue-600" />
+                </div>
+              </div>
+            </div>
+
+            {/* Quick Stats by Provider */}
+            <div className="bg-white rounded-lg shadow">
+              <div className="px-6 py-4 border-b border-gray-200">
+                <h2 className="text-lg font-semibold text-gray-900">
+                  Provider Performance Overview
+                </h2>
+              </div>
+              <div className="p-6">
+                <div className="space-y-4">
+                  {data.byProvider.slice(0, 5).map((provider) => (
+                    <div
+                      key={provider.name}
+                      className="flex items-center justify-between"
+                    >
+                      <div className="flex-1">
+                        <p className="font-medium text-gray-900">
+                          {provider.name}
+                        </p>
+                        <p className="text-sm text-gray-600">
+                          {provider.totalAssessments} assessments,{' '}
+                          {provider.totalRecommendations} recommendations
+                        </p>
+                      </div>
+                      <div className="text-right ml-4">
+                        <p className="text-lg font-semibold text-gray-900">
+                          {provider.acceptanceRate.toFixed(1)}%
+                        </p>
+                        <p className="text-sm text-gray-600">
+                          {provider.acceptedCount} accepted
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Quick Stats by Diagnosis */}
+            <div className="bg-white rounded-lg shadow">
+              <div className="px-6 py-4 border-b border-gray-200">
+                <h2 className="text-lg font-semibold text-gray-900">
+                  Diagnosis Overview
+                </h2>
+              </div>
+              <div className="p-6">
+                <div className="space-y-4">
+                  {data.byDiagnosis.map((diagnosis) => (
+                    <div
+                      key={diagnosis.diagnosis}
+                      className="flex items-center justify-between"
+                    >
+                      <div className="flex-1">
+                        <p className="font-medium text-gray-900">
+                          {formatDiagnosis(diagnosis.diagnosis)}
+                        </p>
+                        <p className="text-sm text-gray-600">
+                          {diagnosis.totalAssessments} assessments,{' '}
+                          {diagnosis.totalRecommendations} recommendations
+                        </p>
+                      </div>
+                      <div className="text-right ml-4">
+                        <p className="text-lg font-semibold text-gray-900">
+                          {diagnosis.acceptanceRate.toFixed(1)}%
+                        </p>
+                        <p className="text-sm text-gray-600">
+                          {diagnosis.acceptedCount} accepted
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Provider View */}
+        {viewMode === 'provider' && (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <div className="flex-1 max-w-md">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="Search providers..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="input pl-10"
+                  />
+                </div>
+              </div>
+              <button
+                onClick={exportToCSV}
+                className="btn btn-secondary flex items-center gap-2"
+              >
+                <Download className="h-4 w-4" />
+                Export CSV
+              </button>
+            </div>
+
+            <div className="bg-white rounded-lg shadow overflow-hidden">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th
+                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                      onClick={() => handleSort('name')}
+                    >
+                      <div className="flex items-center gap-2">
+                        Provider
+                        {sortKey === 'name' &&
+                          (sortOrder === 'asc' ? (
+                            <ChevronUp className="h-4 w-4" />
+                          ) : (
+                            <ChevronDown className="h-4 w-4" />
+                          ))}
+                      </div>
+                    </th>
+                    <th
+                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                      onClick={() => handleSort('totalAssessments')}
+                    >
+                      <div className="flex items-center gap-2">
+                        Assessments
+                        {sortKey === 'totalAssessments' &&
+                          (sortOrder === 'asc' ? (
+                            <ChevronUp className="h-4 w-4" />
+                          ) : (
+                            <ChevronDown className="h-4 w-4" />
+                          ))}
+                      </div>
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Recommendations
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Accepted
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Declined
+                    </th>
+                    <th
+                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                      onClick={() => handleSort('acceptanceRate')}
+                    >
+                      <div className="flex items-center gap-2">
+                        Acceptance Rate
+                        {sortKey === 'acceptanceRate' &&
+                          (sortOrder === 'asc' ? (
+                            <ChevronUp className="h-4 w-4" />
+                          ) : (
+                            <ChevronDown className="h-4 w-4" />
+                          ))}
+                      </div>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {filteredProviders.map((provider) => (
+                    <tr key={provider.name} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="font-medium text-gray-900">
+                          {provider.name}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {provider.totalAssessments}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {provider.totalRecommendations}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className="px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
+                          {provider.acceptedCount}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className="px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">
+                          {provider.declinedCount}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center">
+                          <div className="w-16 bg-gray-200 rounded-full h-2 mr-2">
+                            <div
+                              className="bg-primary-600 h-2 rounded-full"
+                              style={{
+                                width: `${provider.acceptanceRate}%`,
+                              }}
+                            ></div>
+                          </div>
+                          <span className="text-sm font-medium text-gray-900">
+                            {provider.acceptanceRate.toFixed(1)}%
+                          </span>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Detailed Provider Breakdown */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {filteredProviders.map((provider) => (
+                <div key={provider.name} className="bg-white rounded-lg shadow">
+                  <div className="px-6 py-4 border-b border-gray-200">
+                    <h3 className="text-lg font-semibold text-gray-900">
+                      {provider.name}
+                    </h3>
+                  </div>
+                  <div className="p-6 space-y-4">
+                    <div>
+                      <h4 className="text-sm font-medium text-gray-700 mb-2">
+                        By Diagnosis
+                      </h4>
+                      {Object.entries(provider.byDiagnosis).map(
+                        ([diagnosis, stats]) => (
+                          <div
+                            key={diagnosis}
+                            className="flex items-center justify-between py-2"
+                          >
+                            <span className="text-sm text-gray-600">
+                              {formatDiagnosis(diagnosis)}
+                            </span>
+                            <span className="text-sm font-medium text-gray-900">
+                              {stats.total > 0
+                                ? ((stats.accepted / stats.total) * 100).toFixed(
+                                    1
+                                  )
+                                : 0}
+                              % ({stats.accepted}/{stats.total})
+                            </span>
+                          </div>
+                        )
+                      )}
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-medium text-gray-700 mb-2">
+                        By Disease Status
+                      </h4>
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-gray-600">
+                            In Remission
+                          </span>
+                          <span className="text-sm font-medium text-gray-900">
+                            {provider.byRemission.remission.total > 0
+                              ? (
+                                  (provider.byRemission.remission.accepted /
+                                    provider.byRemission.remission.total) *
+                                  100
+                                ).toFixed(1)
+                              : 0}
+                            % ({provider.byRemission.remission.accepted}/
+                            {provider.byRemission.remission.total})
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-gray-600">
+                            Disease Active
+                          </span>
+                          <span className="text-sm font-medium text-gray-900">
+                            {provider.byRemission.active.total > 0
+                              ? (
+                                  (provider.byRemission.active.accepted /
+                                    provider.byRemission.active.total) *
+                                  100
+                                ).toFixed(1)
+                              : 0}
+                            % ({provider.byRemission.active.accepted}/
+                            {provider.byRemission.active.total})
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Diagnosis View */}
+        {viewMode === 'diagnosis' && (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <div className="flex-1 max-w-md">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="Search diagnoses..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="input pl-10"
+                  />
+                </div>
+              </div>
+              <button
+                onClick={exportToCSV}
+                className="btn btn-secondary flex items-center gap-2"
+              >
+                <Download className="h-4 w-4" />
+                Export CSV
+              </button>
+            </div>
+
+            <div className="bg-white rounded-lg shadow overflow-hidden">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th
+                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                      onClick={() => handleSort('diagnosis')}
+                    >
+                      <div className="flex items-center gap-2">
+                        Diagnosis
+                        {sortKey === 'diagnosis' &&
+                          (sortOrder === 'asc' ? (
+                            <ChevronUp className="h-4 w-4" />
+                          ) : (
+                            <ChevronDown className="h-4 w-4" />
+                          ))}
+                      </div>
+                    </th>
+                    <th
+                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                      onClick={() => handleSort('totalAssessments')}
+                    >
+                      <div className="flex items-center gap-2">
+                        Assessments
+                        {sortKey === 'totalAssessments' &&
+                          (sortOrder === 'asc' ? (
+                            <ChevronUp className="h-4 w-4" />
+                          ) : (
+                            <ChevronDown className="h-4 w-4" />
+                          ))}
+                      </div>
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Recommendations
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Accepted
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Declined
+                    </th>
+                    <th
+                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                      onClick={() => handleSort('acceptanceRate')}
+                    >
+                      <div className="flex items-center gap-2">
+                        Acceptance Rate
+                        {sortKey === 'acceptanceRate' &&
+                          (sortOrder === 'asc' ? (
+                            <ChevronUp className="h-4 w-4" />
+                          ) : (
+                            <ChevronDown className="h-4 w-4" />
+                          ))}
+                      </div>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {filteredDiagnoses.map((diagnosis) => (
+                    <tr key={diagnosis.diagnosis} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="font-medium text-gray-900">
+                          {formatDiagnosis(diagnosis.diagnosis)}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {diagnosis.totalAssessments}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {diagnosis.totalRecommendations}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className="px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
+                          {diagnosis.acceptedCount}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className="px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">
+                          {diagnosis.declinedCount}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center">
+                          <div className="w-16 bg-gray-200 rounded-full h-2 mr-2">
+                            <div
+                              className="bg-primary-600 h-2 rounded-full"
+                              style={{
+                                width: `${diagnosis.acceptanceRate}%`,
+                              }}
+                            ></div>
+                          </div>
+                          <span className="text-sm font-medium text-gray-900">
+                            {diagnosis.acceptanceRate.toFixed(1)}%
+                          </span>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Detailed Diagnosis Breakdown */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {filteredDiagnoses.map((diagnosis) => (
+                <div
+                  key={diagnosis.diagnosis}
+                  className="bg-white rounded-lg shadow"
+                >
+                  <div className="px-6 py-4 border-b border-gray-200">
+                    <h3 className="text-lg font-semibold text-gray-900">
+                      {formatDiagnosis(diagnosis.diagnosis)}
+                    </h3>
+                  </div>
+                  <div className="p-6">
+                    <h4 className="text-sm font-medium text-gray-700 mb-2">
+                      By Disease Status
+                    </h4>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-gray-600">
+                          In Remission
+                        </span>
+                        <span className="text-sm font-medium text-gray-900">
+                          {diagnosis.byRemission.remission.total > 0
+                            ? (
+                                (diagnosis.byRemission.remission.accepted /
+                                  diagnosis.byRemission.remission.total) *
+                                100
+                              ).toFixed(1)
+                            : 0}
+                          % ({diagnosis.byRemission.remission.accepted}/
+                          {diagnosis.byRemission.remission.total})
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-gray-600">
+                          Disease Active
+                        </span>
+                        <span className="text-sm font-medium text-gray-900">
+                          {diagnosis.byRemission.active.total > 0
+                            ? (
+                                (diagnosis.byRemission.active.accepted /
+                                  diagnosis.byRemission.active.total) *
+                                100
+                              ).toFixed(1)
+                            : 0}
+                          % ({diagnosis.byRemission.active.accepted}/
+                          {diagnosis.byRemission.active.total})
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Individual Assessments View */}
+        {viewMode === 'individual' && (
+          <div className="space-y-6">
+            {/* Filters */}
+            <div className="bg-white rounded-lg shadow p-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="Search MRN or provider..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="input pl-10"
+                  />
+                </div>
+
+                <select
+                  value={filterProvider}
+                  onChange={(e) => setFilterProvider(e.target.value)}
+                  className="input"
+                >
+                  <option value="all">All Providers</option>
+                  {data.byProvider.map((p) => (
+                    <option key={p.name} value={p.name}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+
+                <select
+                  value={filterDiagnosis}
+                  onChange={(e) => setFilterDiagnosis(e.target.value)}
+                  className="input"
+                >
+                  <option value="all">All Diagnoses</option>
+                  {data.byDiagnosis.map((d) => (
+                    <option key={d.diagnosis} value={d.diagnosis}>
+                      {formatDiagnosis(d.diagnosis)}
+                    </option>
+                  ))}
+                </select>
+
+                <select
+                  value={filterRemission}
+                  onChange={(e) => setFilterRemission(e.target.value)}
+                  className="input"
+                >
+                  <option value="all">All Statuses</option>
+                  <option value="remission">In Remission</option>
+                  <option value="active">Disease Active</option>
+                </select>
+              </div>
+
+              <div className="mt-4 flex items-center justify-between">
+                <p className="text-sm text-gray-600">
+                  Showing {filteredAssessments.length} assessments
+                </p>
+                <button
+                  onClick={exportToCSV}
+                  className="btn btn-secondary flex items-center gap-2"
+                >
+                  <Download className="h-4 w-4" />
+                  Export CSV
+                </button>
+              </div>
+            </div>
+
+            {/* Assessments List */}
+            <div className="bg-white rounded-lg shadow overflow-hidden">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th
+                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                      onClick={() => handleSort('mrn')}
+                    >
+                      <div className="flex items-center gap-2">
+                        MRN
+                        {sortKey === 'mrn' &&
+                          (sortOrder === 'asc' ? (
+                            <ChevronUp className="h-4 w-4" />
+                          ) : (
+                            <ChevronDown className="h-4 w-4" />
+                          ))}
+                      </div>
+                    </th>
+                    <th
+                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                      onClick={() => handleSort('name')}
+                    >
+                      <div className="flex items-center gap-2">
+                        Provider
+                        {sortKey === 'name' &&
+                          (sortOrder === 'asc' ? (
+                            <ChevronUp className="h-4 w-4" />
+                          ) : (
+                            <ChevronDown className="h-4 w-4" />
+                          ))}
+                      </div>
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Diagnosis
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Status
+                    </th>
+                    <th
+                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                      onClick={() => handleSort('createdAt')}
+                    >
+                      <div className="flex items-center gap-2">
+                        Date
+                        {sortKey === 'createdAt' &&
+                          (sortOrder === 'asc' ? (
+                            <ChevronUp className="h-4 w-4" />
+                          ) : (
+                            <ChevronDown className="h-4 w-4" />
+                          ))}
+                      </div>
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Recommendations
+                    </th>
+                    <th
+                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                      onClick={() => handleSort('acceptanceRate')}
+                    >
+                      <div className="flex items-center gap-2">
+                        Accepted
+                        {sortKey === 'acceptanceRate' &&
+                          (sortOrder === 'asc' ? (
+                            <ChevronUp className="h-4 w-4" />
+                          ) : (
+                            <ChevronDown className="h-4 w-4" />
+                          ))}
+                      </div>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {filteredAssessments.map((assessment) => {
+                    const acceptedCount = assessment.recommendations.filter(
+                      (r) => r.status === 'ACCEPTED'
+                    ).length;
+                    const totalRecs = assessment.recommendations.length;
+
+                    return (
+                      <tr key={assessment.id} className="hover:bg-gray-50">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                          {assessment.mrn}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {assessment.providerName}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {formatDiagnosis(assessment.diagnosis)}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span
+                            className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                              assessment.isRemission
+                                ? 'bg-blue-100 text-blue-800'
+                                : 'bg-yellow-100 text-yellow-800'
+                            }`}
+                          >
+                            {assessment.isRemission ? 'Remission' : 'Active'}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {new Date(assessment.createdAt).toLocaleDateString()}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {totalRecs}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span
+                            className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                              acceptedCount > 0
+                                ? 'bg-green-100 text-green-800'
+                                : 'bg-red-100 text-red-800'
+                            }`}
+                          >
+                            {acceptedCount} / {totalRecs}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
