@@ -23,99 +23,6 @@ function getAnthropic(): Anthropic {
   return _anthropic;
 }
 
-/**
- * FDA-approved MAINTENANCE dosing for biologics
- * Used to detect if patient is on standard, reduced, or extended dosing
- */
-const STANDARD_MAINTENANCE_DOSING: Record<string, { interval: number; unit: 'weeks' | 'days' }> = {
-  // IL-23 Inhibitors
-  'Skyrizi': { interval: 12, unit: 'weeks' },
-  'Risankizumab': { interval: 12, unit: 'weeks' },
-  'Tremfya': { interval: 8, unit: 'weeks' },
-  'Guselkumab': { interval: 8, unit: 'weeks' },
-  'Ilumya': { interval: 12, unit: 'weeks' },
-  'Tildrakizumab': { interval: 12, unit: 'weeks' },
-
-  // IL-17 Inhibitors
-  'Cosentyx': { interval: 4, unit: 'weeks' },
-  'Secukinumab': { interval: 4, unit: 'weeks' },
-  'Taltz': { interval: 4, unit: 'weeks' },
-  'Ixekizumab': { interval: 4, unit: 'weeks' },
-  'Siliq': { interval: 1, unit: 'weeks' },
-  'Brodalumab': { interval: 1, unit: 'weeks' },
-
-  // TNF Inhibitors
-  'Humira': { interval: 2, unit: 'weeks' },
-  'Adalimumab': { interval: 2, unit: 'weeks' },
-  'Adalimumab-adbm': { interval: 2, unit: 'weeks' },
-  'Adalimumab-adaz': { interval: 2, unit: 'weeks' },
-  'Adalimumab-aaty': { interval: 2, unit: 'weeks' },
-  'Adalimumab-afzb': { interval: 2, unit: 'weeks' },
-  'Cyltezo': { interval: 2, unit: 'weeks' },
-  'Yusimry': { interval: 2, unit: 'weeks' },
-  'Hyrimoz': { interval: 2, unit: 'weeks' },
-  'Hadlima': { interval: 2, unit: 'weeks' },
-  'Abrilada': { interval: 2, unit: 'weeks' },
-  'Enbrel': { interval: 1, unit: 'weeks' },
-  'Etanercept': { interval: 1, unit: 'weeks' },
-  'Etanercept-szzs': { interval: 1, unit: 'weeks' },
-  'Erelzi': { interval: 1, unit: 'weeks' },
-  'Eticovo': { interval: 1, unit: 'weeks' },
-  'Cimzia': { interval: 2, unit: 'weeks' },
-  'Certolizumab': { interval: 2, unit: 'weeks' },
-  'Simponi': { interval: 4, unit: 'weeks' },
-  'Golimumab': { interval: 4, unit: 'weeks' },
-
-  // IL-12/23 Inhibitors
-  'Stelara': { interval: 12, unit: 'weeks' },
-  'Ustekinumab': { interval: 12, unit: 'weeks' },
-
-  // IL-4/13 Inhibitors
-  'Dupixent': { interval: 2, unit: 'weeks' },
-  'Dupilumab': { interval: 2, unit: 'weeks' },
-
-  // JAK Inhibitors (oral - daily dosing)
-  'Rinvoq': { interval: 1, unit: 'days' },
-  'Upadacitinib': { interval: 1, unit: 'days' },
-  'Sotyktu': { interval: 1, unit: 'days' },
-  'Deucravacitinib': { interval: 1, unit: 'days' },
-};
-
-/**
- * Parse frequency string and detect dose reduction level
- * Returns 0 (standard), 25, or 50 (percent reduction from standard)
- */
-function getDoseReductionLevel(drugName: string, currentFrequency: string): 0 | 25 | 50 {
-  const standardDosing = STANDARD_MAINTENANCE_DOSING[drugName];
-  if (!standardDosing) {
-    return 0; // Unknown drug, assume standard dosing
-  }
-
-  const frequencyLower = currentFrequency.toLowerCase();
-  const intervalMatch = frequencyLower.match(/every\s+(\d+)\s+(week|day)/);
-  if (!intervalMatch) {
-    return 0; // Can't parse, assume standard
-  }
-
-  const currentInterval = parseInt(intervalMatch[1]);
-  const currentUnit = intervalMatch[2].includes('week') ? 'weeks' : 'days';
-
-  if (currentUnit !== standardDosing.unit) {
-    return 0; // Different units, assume standard
-  }
-
-  const standardInterval = standardDosing.interval;
-  const extensionRatio = currentInterval / standardInterval;
-
-  if (extensionRatio <= 1.15) {
-    return 0; // Within 15% of standard
-  } else if (extensionRatio <= 1.6) {
-    return 25; // 16%-60% extension ≈ 25% dose reduction
-  } else {
-    return 50; // >60% extension ≈ 50% dose reduction
-  }
-}
-
 export interface AssessmentInput {
   patientId?: string | null;
   planId: string;  // Required for PHI-free assessments
@@ -131,16 +38,7 @@ export interface AssessmentInput {
   failedTherapies?: string[];
   isStable?: boolean;
   dlqiScore: number;
-  bmi?: string | null;  // '<25', '25-30', '>30' - for future logic
-}
-
-interface TriageResult {
-  canDoseReduce: boolean;
-  shouldSwitch: boolean;
-  needsInitiation: boolean;
-  shouldContinueCurrent: boolean;
-  quadrant: string;
-  reasoning: string;
+  bmi?: string | null;  // '<25', '25-30', '>30' - for BMI consideration
 }
 
 interface LLMRecommendation {
@@ -152,11 +50,6 @@ interface LLMRecommendation {
   monitoringPlan?: string;
   rank: number;
 }
-
-/**
- * Patients in remission are assumed to have been stable for >= 3 months
- * This is the minimum duration required before considering optimization
- */
 
 /**
  * Convert string requiresPA value to boolean
@@ -179,135 +72,6 @@ function stripMarkdownCodeBlock(text: string): string {
 }
 
 /**
- * Determine formulary status and quadrant using hard-coded rules
- * Note: Patients in remission are assumed to have been stable >= 3 months
- */
-function determineQuadrantAndStatus(
-  isStableInput: boolean,
-  currentFormularyDrug: FormularyDrug | null,
-  hasCurrentBiologic: boolean
-): { isStable: boolean; isFormularyOptimal: boolean; quadrant: string } {
-  // Special case: Not on biologic yet (initiation pathway)
-  if (!hasCurrentBiologic) {
-    return {
-      isStable: false, // N/A for initiation
-      isFormularyOptimal: false, // N/A for initiation
-      quadrant: 'not_on_biologic'
-    };
-  }
-
-  // Remission: Based on clinician judgment
-  // Assumed to be stable >= 3 months (minimum duration for optimization)
-  const isStable = isStableInput;
-
-  // Formulary optimal: Tier 1 (regardless of PA requirement for CURRENT therapy)
-  // Rationale: If patient is already on a Tier 1 drug with PA, they've cleared that hurdle.
-  //            PA requirement is only relevant when evaluating NEW drug switches/starts.
-  // Tier 2-5 = suboptimal
-  const isFormularyOptimal = currentFormularyDrug
-    ? currentFormularyDrug.tier === 1
-    : false;
-
-  // Determine quadrant
-  let quadrant: string;
-  if (isStable && isFormularyOptimal) {
-    quadrant = 'stable_optimal'; // Tier 1, stable
-  } else if (isStable && !isFormularyOptimal) {
-    quadrant = 'stable_suboptimal'; // Tier 2-3, stable
-  } else if (!isStable && isFormularyOptimal) {
-    quadrant = 'unstable_optimal'; // Tier 1, unstable
-  } else {
-    quadrant = 'unstable_suboptimal'; // Tier 2-3, unstable
-  }
-
-  return { isStable, isFormularyOptimal, quadrant };
-}
-
-/**
- * Step 1: LLM Triage - Get clinical reasoning and recommendation strategy
- */
-async function triagePatient(
-  assessment: AssessmentInput,
-  currentDrug: string | null,
-  formularyDrug: FormularyDrug | null,
-  quadrant: string,
-  currentDoseReduction: 0 | 25 | 50,
-  lowestTierInFormulary: number,
-  currentTier: number,
-  availableTiers: number[]
-): Promise<TriageResult> {
-  const prompt = `You are a clinical decision support AI for dermatology biologic optimization with comprehensive tier and dose reduction logic.
-
-Patient Information:
-- Diagnosis: ${assessment.diagnosis}
-- Current medication: ${currentDrug || 'None (not on biologic)'}
-- Current dose status: ${currentDoseReduction === 0 ? 'Standard dosing' : `${currentDoseReduction}% dose-reduced`}
-- Disease control: ${assessment.isStable ? 'In remission (assumed >= 3 months)' : 'Active disease'}
-- Has psoriatic arthritis: ${assessment.hasPsoriaticArthritis ? 'Yes' : 'No'}
-
-Formulary Tier Structure (RELATIVE TIER LOGIC):
-- Available tiers in formulary: [${availableTiers.join(', ')}]
-- Lowest tier in formulary: Tier ${lowestTierInFormulary}
-- Current tier: Tier ${currentTier}
-- Requires PA: ${formularyDrug?.requiresPA || 'Unknown'}
-- Classification: ${quadrant.replace(/_/g, ' ').toUpperCase()}
-
-KEY PRINCIPLE: For patients in remission, prioritize de-escalation (dose reduction, cessation) before class switches.
-
-COMPREHENSIVE OPTIMIZATION LOGIC:
-- For patients in remission (≥3 months): Dose reduction FIRST, then cessation, THEN tier switches if needed
-- For patients in remission ON lowest tier: Recommend dose reduction stepping (0% → 25% → 50% max), then cessation
-- For active disease + dose-reduced patients: Return to standard dosing FIRST
-- For patients in remission <3 months: CAN switch tiers, CANNOT dose reduce yet
-
-DOSE REDUCTION STEPPING:
-- Maximum reduction: 50% from standard
-- Step 1: Standard (0%) → 25% reduction
-- Step 2: 25% → 50% reduction (maximum)
-- Only for patients in remission ≥3 months
-- Clinical evidence should be retrieved
-
-CONTINUE CURRENT only when:
-- In remission <3 months (too early to optimize), OR
-- Already dose-reduced + on lowest tier + in remission
-
-Based on quadrant "${quadrant}", current dose ${currentDoseReduction}%, tier ${currentTier} of ${lowestTierInFormulary}, determine flags:
-
-**Flag Setting Rules:**
-- "canDoseReduce": true if in remission ≥3 months AND dose reduction not yet maxed (not at 50%)
-- "shouldSwitch": true ONLY if in remission ≥3 months AND already recommended dose reduction AND cessation
-- "needsInitiation": true if not currently on biologic
-- "shouldContinueCurrent": true if in remission <3 months OR already 50% reduced + on lowest tier
-
-**CRITICAL**: For patients in remission ≥3 months, canDoseReduce should be TRUE (prioritize de-escalation first)
-
-Return ONLY a JSON object with this exact structure:
-{
-  "canDoseReduce": boolean,
-  "shouldSwitch": boolean,
-  "needsInitiation": boolean,
-  "shouldContinueCurrent": boolean,
-  "quadrant": "${quadrant}",
-  "reasoning": "string explaining the de-escalation priority: dose reduction → cessation → tier switches"
-}`;
-
-  const anthropic = getAnthropic();
-  const response = await anthropic.messages.create({
-    model: 'claude-sonnet-4-5-20250929',
-    max_tokens: 1024,
-    temperature: 0.3,
-    system: 'You are a clinical decision support AI. Always respond with valid JSON only, no other text.',
-    messages: [{ role: 'user', content: prompt }],
-  });
-
-  const content = response.content[0];
-  const rawText = content.type === 'text' ? content.text : '{}';
-  const cleanJson = stripMarkdownCodeBlock(rawText);
-  const result = JSON.parse(cleanJson);
-  return result as TriageResult;
-}
-
-/**
  * Retrieve structured clinical findings from database
  *
  * Queries the ClinicalFinding table for human-reviewed findings
@@ -315,11 +79,10 @@ Return ONLY a JSON object with this exact structure:
  */
 async function retrieveStructuredFindings(
   drugName: string | null,
-  diagnosis: DiagnosisType,
-  triage: TriageResult
+  diagnosis: DiagnosisType
 ): Promise<string[]> {
-  // If dose reduction is needed, retrieve structured findings
-  if ((triage.canDoseReduce || triage.shouldContinueCurrent) && drugName) {
+  // Retrieve structured findings for relevant drugs
+  if (drugName) {
     try {
       const findings = await prisma.clinicalFinding.findMany({
         where: {
@@ -338,7 +101,7 @@ async function retrieveStructuredFindings(
             },
             {
               findingType: {
-                in: ['DOSE_REDUCTION', 'INTERVAL_EXTENSION', 'SAFETY', 'EFFICACY']
+                in: ['SAFETY', 'EFFICACY']
               },
             },
             // CRITICAL: Only use human-reviewed findings in decision engine
@@ -672,18 +435,17 @@ function filterContraindicated(
 }
 
 /**
- * Step 4: LLM Decision-Making with retrieved context
+ * LLM Ranking: Select next best biologic from formulary
+ * Prioritizes lowest tier, then matches comorbidities, then ranks by efficacy
  */
 async function getLLMRecommendationSuggestions(
   assessment: AssessmentInput,
   currentDrug: string | null,
   currentBiologic: any | null,
-  triage: TriageResult,
   evidence: string[],
   formularyOptions: FormularyDrug[],
   currentFormularyDrug: FormularyDrug | null,
   contraindications: Contraindication[],
-  currentDoseReduction: 0 | 25 | 50,
   lowestTierInFormulary: number,
   currentTier: number,
   availableTiers: number[]
@@ -695,10 +457,10 @@ async function getLLMRecommendationSuggestions(
   // Get current brand name (not generic) to properly exclude from switch options
   const currentBrandName = currentFormularyDrug?.drugName || currentDrug;
 
-  // Build current dosing information string
-  const currentDosingInfo = currentBiologic
-    ? `${currentBiologic.dose} ${currentBiologic.frequency} (${currentDoseReduction === 0 ? 'Standard' : `${currentDoseReduction}% reduced`})`
-    : 'Not specified';
+  // Build BMI context if provided
+  const bmiContext = assessment.bmi
+    ? `BMI: ${assessment.bmi} ${assessment.bmi === '>30' ? '- Consider that weight-based biologics may require higher doses or more frequent administration in patients with higher BMI' : ''}`
+    : '';
 
   // Filter and deduplicate formulary options
   // CRITICAL: Exclude the current brand drug AND deduplicate by generic name
@@ -732,228 +494,91 @@ async function getLLMRecommendationSuggestions(
     ? evidence.join('\n\n')
     : 'No specific evidence retrieved from knowledge base.';
 
-  // Count unique Tier 1 options to help LLM decide whether to offer dose reduction
-  const tier1Count = Array.from(uniqueFormularyDrugs.values())
-    .filter(d => d.tier === 1)
-    .length;
-
-  const prompt = `You are a clinical decision support AI for dermatology biologic optimization.
+  const prompt = `You are a clinical decision support AI for biologic selection. Your task is to recommend the next best biologic from the formulary for this patient.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 PATIENT INFORMATION
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-- Current medication: ${currentBrandName || 'None (not on biologic)'}${currentDrug && currentDrug !== currentBrandName ? ` (generic: ${currentDrug})` : ''}
-- Current dosing: ${currentDosingInfo}
+- Current medication: ${currentBrandName || 'None (initiating first biologic)'}
 - Diagnosis: ${assessment.diagnosis}
-- Disease control: ${assessment.isStable ? 'In remission (assumed >= 3 months)' : 'Active disease'}
-- Psoriatic arthritis: ${assessment.hasPsoriaticArthritis ? 'YES - prefer drugs with PsA indication' : 'NO'}
-- Quadrant: ${triage.quadrant}
-- Triage reasoning: ${triage.reasoning}
+- Psoriatic arthritis: ${assessment.hasPsoriaticArthritis ? 'YES - prefer IL-17, IL-23, or TNF inhibitors' : 'NO'}
+${bmiContext}
 - Contraindications: ${contraindicationText}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-FORMULARY TIER STRUCTURE (RELATIVE LOGIC)
+FORMULARY OPTIONS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-- Available tiers in formulary (for indicated drugs): [${availableTiers.join(', ')}]
-- Lowest tier in this formulary: ${lowestTierInFormulary}
-- Patient's current tier: ${currentTier}
-- Current dose reduction status: ${currentDoseReduction}%
-- Current formulary status: ${currentFormularyDrug ? `Tier ${currentFormularyDrug.tier}, PA: ${currentFormularyDrug.requiresPA || 'Unknown'}, Annual Cost: $${currentFormularyDrug.annualCostWAC}` : 'Not on formulary'}
+Available tiers: [${availableTiers.join(', ')}]
+Lowest tier (best for cost savings): Tier ${lowestTierInFormulary}
+${currentBrandName ? `Current drug tier: Tier ${currentTier}` : ''}
 
-Available Formulary Options (deduplicated by generic name):
+Available Formulary Options (current drug excluded, deduplicated by generic):
 ${formularyText}
 
-⚠️ CRITICAL: Cost savings is THE priority. Always recommend the LOWEST tier available in this formulary first (Tier ${lowestTierInFormulary}), not necessarily Tier 1.
+⚠️ CRITICAL PRIORITY: Cost savings is THE goal. ALWAYS prioritize Tier ${lowestTierInFormulary} (lowest tier) first.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-CLINICAL EVIDENCE FROM KNOWLEDGE BASE (Use for dose reduction citations)
+CLINICAL EVIDENCE (for reference only)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ${evidenceText}
 
-⚠️ When recommending DOSE_REDUCTION, cite ALL relevant papers from above by specific titles and authors. NEVER hallucinate citations. Accuracy > citation count.
-
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-OPTIMIZATION ALGORITHM (DE-ESCALATION PRIORITY)
+SELECTION ALGORITHM
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-**PRIMARY PRINCIPLE: For ALL patients in remission >3 months: Dose reduction FIRST, cessation SECOND, tier switches LAST**
-**Rationale: De-escalation maintains disease control while minimizing medication burden before considering class changes**
+**Step 1: Filter by Tier**
+- Prioritize Tier ${lowestTierInFormulary} drugs first
+- Then Tier ${availableTiers[1] || 'N/A'}
+- Then higher tiers if needed
 
-For patients IN REMISSION (in remission ≥3 months) regardless of tier:
-1. **First Priority**: DOSE_REDUCTION - Start dose reduction stepping (0% → 25% reduction)
-   - If already 25% reduced: Offer 50% reduction as next step
-   - If already 50% reduced: Maximum reached, move to next priority (cessation)
-2. **Second Priority**: CEASE_BIOLOGIC - Discontinue biologic with non-biologic alternative
-   - CRITICAL: For patients at 50% dose reduction (maximally reduced), cessation is NEXT priority before any tier switches
-   - Must recommend Zoryve (roflumilast) for psoriasis or Opzelura (ruxolitinib) for atopic dermatitis
-   - Cessation comes BEFORE tier switches for maximally dose-reduced patients
-3. **Third Priority**: Class switches to lower-tier options (if not on lowest tier)
-   - Switch to Tier ${lowestTierInFormulary} (lowest available), then ${availableTiers[1] || 'N/A'} if needed
-   - Prioritize biosimilars of current drug class over different mechanisms
-   - Only offer AFTER dose reduction and cessation already recommended
+**Step 2: Match Comorbidities (within tier)**
+- Psoriatic Arthritis → IL-17 inhibitors (Cosentyx, Taltz, Siliq) or IL-23 inhibitors (Tremfya, Skyrizi, Ilumya) or TNF inhibitors (Humira, Enbrel, Cimzia)
+- Asthma + Atopic Dermatitis → Dupixent strongly preferred (multi-indication benefit)
+- Inflammatory Bowel Disease → AVOID IL-17 inhibitors
 
-**CRITICAL ORDERING - MUST FOLLOW THIS EXACT SEQUENCE**:
-- ALL patients in remission ≥3 months: Dose reduction → cessation → tier switches
-- Patients NOT yet maximally dose-reduced: Recommend dose reduction as option 1, cessation as option 2, tier switch as option 3
-- Patients MAXIMALLY dose-reduced (50%): Recommend cessation as option 1, tier switches as options 2-3
-- **NEVER skip cessation to go directly to tier switches** - cessation MUST be offered before any tier optimization
-- The priority is ALWAYS: dose reduction → cessation → tier optimization (NO EXCEPTIONS)
-
-For patients with ACTIVE DISEASE on REDUCED dose:
-1. **Primary Goal**: Keep patient on dose reduction while improving control
-2. **First Priority**: ADD_TOPICAL - add Zoryve, Opzelura, or tacrolimus (lowest tier topical) to current dose-reduced biologic
-3. **Second Priority**: If ADD_TOPICAL insufficient, consider returning to standard dosing
-4. **Third Priority**: Switch to different biologic at standard dosing (lower tier if available)
-5. **Never recommend**: Dose reduction for patients with active disease
-
-For patients with ACTIVE DISEASE on STANDARD dose:
-1. Recommend most efficacious drugs in best available tier
-2. Prioritize mechanism switching (TNF → IL-17/IL-23 for better efficacy)
-3. **Never dose reduce**
-
-NOTE: Patients in remission are assumed to have been stable >= 3 months (minimum duration for optimization)
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-DOSE REDUCTION STEPPING RULES
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Patient's current dose reduction: ${currentDoseReduction}%
-
-**Stepping Logic:**
-- Standard (0%) → First reduction: 25% extension (e.g., Q2W → Q3W, Q4W → Q6W, Q8W → Q10W, Q12W → Q16W)
-- 25% reduced → Second reduction: 50% extension (e.g., Q2W → Q4W, Q4W → Q8W, Q8W → Q12W, Q12W → Q18W)
-- 50% reduced → Maximum reached, CONTINUE_CURRENT only
-- NEVER exceed 50% reduction from FDA standard maintenance dosing
-
-**Examples of Proper Stepping:**
-- Adalimumab (Q2W standard): 0% → Q3W (25%) → Q4W (50%) [STOP]
-- Secukinumab (Q4W standard): 0% → Q6W (25%) → Q8W (50%) [STOP]
-- Risankizumab (Q8W standard): 0% → Q10W (25%) → Q12W (50%) [STOP]
-- Ustekinumab (Q12W standard): 0% → Q16W (25%) → Q18W (50%) [STOP]
-
-⚠️ CRITICAL: A reduction MUST extend the interval beyond current. NEVER recommend same interval.
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-WITHIN-TIER EFFICACY RANKING
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-When multiple drugs exist in same tier, rank by clinical efficacy:
-
-**Psoriasis Efficacy Hierarchy:**
-1. IL-23 inhibitors (Risankizumab, Guselkumab, Tildrakizumab) - highest efficacy
-2. IL-17 inhibitors (Secukinumab, Ixekizumab, Brodalumab) - excellent efficacy
-3. TNF inhibitors (Adalimumab, Infliximab, Etanercept) - good efficacy
-4. IL-4/13 inhibitors (Dupilumab) - moderate efficacy, excellent for AD
-5. Oral agents (Apremilast, Deucravacitinib) - moderate efficacy
-
-**Comorbidity Considerations:**
-- Asthma + Atopic Dermatitis → Dupilumab strongly preferred (multi-indication benefit)
-- Psoriatic arthritis → IL-17 or TNF inhibitors preferred over IL-23
-- Inflammatory bowel disease → AVOID IL-17 inhibitors, prefer TNF or IL-23
-- Cardiovascular disease → Consider IL-23 (no heart failure concerns vs TNF)
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-CONTRAINDICATION RULES (PRE-FILTERED)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-- TNF inhibitors: CONTRAINDICATED if HEART_FAILURE or MULTIPLE_SCLEROSIS
-- IL-17 inhibitors: Can worsen INFLAMMATORY_BOWEL_DISEASE
-- ALL biologics: CONTRAINDICATED if ACTIVE_INFECTION
-- Contraindicated drugs have been PRE-FILTERED from formulary options shown above
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-RECOMMENDATION TYPES
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Use these types:
-- **SWITCH_TO_BIOSIMILAR**: Switching to biosimilar version of current drug (e.g., Humira → Amjevita)
-- **SWITCH_TO_PREFERRED**: Switching to different drug in lower tier (formulary optimization)
-- **THERAPEUTIC_SWITCH**: Switching mechanism for efficacy (e.g., TNF → IL-23 for better control)
-- **DOSE_REDUCTION**: Extending interval of current drug (must cite RAG evidence)
-- **CEASE_BIOLOGIC**: Discontinue biologic therapy (only for patients in remission after exhausting other options, must recommend non-biologic alternative)
-- **ADD_TOPICAL**: Add topical therapy to dose-reduced biologic (for patients with active disease on reduced dose, to maintain dose reduction while improving control)
-- **CONTINUE_CURRENT**: Continue current therapy unchanged (only when truly no optimization possible)
-- **OPTIMIZE_CURRENT**: Minor adjustments to current therapy
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-EVIDENCE REQUIREMENTS
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-**DOSE_REDUCTION ONLY** - Must cite RAG evidence:
-- Cite ALL relevant papers from Clinical Evidence section above
-- Reference by actual titles/authors (e.g., "CONDOR trial (Atalay et al.)")
-- Include specific findings from studies
-- If 5 papers relevant, cite all 5. If only 2 relevant, cite those 2 accurately
-- NEVER hallucinate citations. Accuracy > citation count.
-- Do NOT mention DLQI scores - simply state "in remission" or "active disease" with duration
-- Example: "Patient has been in remission for 3 months on standard dosing. Multiple studies support adalimumab dose reduction in patients with remission. The CONDOR trial (Atalay et al.) demonstrated that extending dosing intervals to every 4 weeks was noninferior to usual care. Additional studies by Piaserico et al. showed successful down-titration with maintenance of clearance."
-
-**FORMULARY SWITCHES** - NO RAG needed:
-- Cost optimization is self-evident business case
-- Provide clear clinical reasoning but no citations needed
-
-**THERAPEUTIC SWITCHES** - NO RAG needed:
-- Standard clinical practice for efficacy escalation
-- Provide rationale but no citations needed
+**Step 3: Rank by Efficacy (within tier, after comorbidity match)**
+Psoriasis efficacy hierarchy:
+1. IL-23 inhibitors (Risankizumab/Skyrizi, Guselkumab/Tremfya, Tildrakizumab/Ilumya) - highest efficacy
+2. IL-17 inhibitors (Secukinumab/Cosentyx, Ixekizumab/Taltz, Brodalumab/Siliq) - excellent efficacy
+3. TNF inhibitors (Adalimumab/Humira, Etanercept/Enbrel, Certolizumab/Cimzia) - good efficacy
+4. IL-4/13 inhibitors (Dupilumab/Dupixent) - moderate psoriasis efficacy, excellent for AD
+5. Oral agents (Apremilast/Otezla, Deucravacitinib/Sotyktu) - moderate efficacy
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 OUTPUT REQUIREMENTS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Generate EXACTLY 3 specific recommendations following the de-escalation hierarchy strictly:
-
-**For patients in remission ≥3 months**:
-- Option 1: DOSE_REDUCTION (if not at 50% yet)
-- Option 2: CEASE_BIOLOGIC (must include non-biologic alternative)
-- Option 3: Tier switch (biosimilar or lower tier)
-- **NEVER skip cessation to recommend tier switches directly**
-
-**For patients in remission <3 months**:
-- Recommend CONTINUE_CURRENT or tier switches only (NO dose reduction)
-
-**For patients with active disease**:
-- If on reduced dose: ADD_TOPICAL, then return to standard dosing, then switches
-- If on standard dose: Recommend efficacious drugs in best tier
+Generate EXACTLY 3 recommendations ranked by:
+1. LOWEST tier first (Tier ${lowestTierInFormulary} priority)
+2. Comorbidity match (if PsA present)
+3. Efficacy (IL-23 > IL-17 > TNF for psoriasis)
 
 For EACH recommendation provide:
-1. **Type**: One of the types listed above
-2. **Drug name**:
-   - CONTINUE_CURRENT/OPTIMIZE_CURRENT/DOSE_REDUCTION: "${currentBrandName}"
-   - CEASE_BIOLOGIC: "Discontinue ${currentBrandName}"
-   - ADD_TOPICAL: "Zoryve" or "Opzelura" or "Tacrolimus" (from formulary, lowest tier)
-   - SWITCH recommendations: From formulary options above
-   - NEVER recommend same drug twice
-3. **New dose**:
-   - DOSE_REDUCTION: Specific reduced dose (e.g., "40 mg")
-   - CEASE_BIOLOGIC: "N/A" but MUST mention non-biologic alternative in rationale (Zoryve for psoriasis, Opzelura for AD)
-   - ADD_TOPICAL: "Per label for topical" + maintain current biologic dose
-   - SWITCHES: FDA-approved specific dose (e.g., "300 mg", "80 mg initial then 40 mg")
-   - NEVER use "Per label" for biologics - always specify actual dose
-4. **New frequency**:
-   - DOSE_REDUCTION: Specific reduced interval (e.g., "every 4 weeks")
-   - CEASE_BIOLOGIC: "N/A"
-   - ADD_TOPICAL: "Daily or twice daily per label" + maintain current biologic frequency
-   - SWITCHES: FDA-approved specific frequency (e.g., "every 2 weeks after initial dose")
-   - NEVER use "Per label" for biologics - always specify actual interval
-5. **Rationale**:
-   - DOSE_REDUCTION: Cite all relevant papers from Clinical Evidence section
-   - CEASE_BIOLOGIC: Explain that patient has been in remission for extended period, has exhausted other optimization options, and recommend transitioning to non-biologic therapy (Zoryve/Opzelura/tacrolimus)
-   - ADD_TOPICAL: Explain that adding topical allows maintaining dose-reduced biologic while improving control for patient with active disease
-   - SWITCHES: Clear clinical reasoning (cost savings, efficacy, formulary optimization)
-   - Parse additionalNotes for comorbidities to justify drug selection
-6. **Monitoring plan**: Specific follow-up plan (e.g., "Reassess at 3 and 6 months")
+1. **Type**: Use "INITIATE_BIOLOGIC" for all recommendations
+2. **Drug name**: From formulary options above (NEVER recommend current drug)
+3. **New dose**: FDA-approved specific dose (e.g., "300 mg", "80 mg initial then 40 mg") - NEVER use "Per label"
+4. **New frequency**: FDA-approved specific frequency (e.g., "every 4 weeks after loading") - NEVER use "Per label"
+5. **Rationale**: Explain why this drug is recommended:
+   - Mention tier and cost savings if applicable
+   - Mention comorbidity match if applicable (e.g., "IL-17 inhibitor appropriate for psoriatic arthritis")
+   - Mention efficacy profile
+   - Keep concise (2-3 sentences)
+6. **Monitoring plan**: Standard follow-up (e.g., "Assess efficacy at 12-16 weeks")
+7. **Rank**: 1, 2, or 3
 
-⚠️ NEVER output placeholder text like "No options available" as a drug name.
-⚠️ NEVER recommend the current drug as a "switch" - it's excluded from formulary options.
-⚠️ NEVER recommend same drug twice.
+⚠️ NEVER output placeholder text like "No options available"
+⚠️ NEVER recommend the current drug
+⚠️ NEVER recommend same drug twice
+⚠️ All recommendations must be type "INITIATE_BIOLOGIC"
 
 Return ONLY valid JSON with this exact structure:
 {
   "recommendations": [
     {
-      "type": "DOSE_REDUCTION",
-      "drugName": "string or null",
-      "newDose": "string or null",
-      "newFrequency": "string or null",
+      "type": "INITIATE_BIOLOGIC",
+      "drugName": "string",
+      "newDose": "string",
+      "newFrequency": "string",
       "rationale": "string",
       "monitoringPlan": "string",
       "rank": number
@@ -967,7 +592,7 @@ Return ONLY valid JSON with this exact structure:
       model: 'claude-sonnet-4-5-20250929',
       max_tokens: 4096,
       temperature: 0.4,
-      system: 'You are a clinical decision support AI for dermatology biologic optimization. Always respond with valid JSON only, no other text.',
+      system: 'You are a clinical decision support AI for biologic selection. Recommend the next best biologic from the formulary, prioritizing lowest tier and matching comorbidities. Always respond with valid JSON only, no other text.',
       messages: [{ role: 'user', content: prompt }],
     });
 
@@ -993,7 +618,7 @@ Return ONLY valid JSON with this exact structure:
 }
 
 /**
- * Step 5: Calculate cost savings
+ * Calculate cost savings for switching biologics
  */
 function calculateCostSavings(
   recommendation: LLMRecommendation,
@@ -1005,14 +630,7 @@ function calculateCostSavings(
   let annualSavings: number | undefined;
   let savingsPercent: number | undefined;
 
-  if (recommendation.type === 'DOSE_REDUCTION' && currentAnnualCost) {
-    // Estimate based on frequency reduction
-    // If extending from every 4 weeks to every 8 weeks, that's 50% reduction
-    // For now, estimate 25% reduction as conservative
-    recommendedAnnualCost = currentAnnualCost * 0.75;
-    annualSavings = currentAnnualCost * 0.25;
-    savingsPercent = 25;
-  } else if (targetDrug && currentAnnualCost) {
+  if (targetDrug && currentAnnualCost) {
     recommendedAnnualCost = targetDrug.annualCostWAC?.toNumber();
     if (recommendedAnnualCost) {
       annualSavings = currentAnnualCost - recommendedAnnualCost;
@@ -1026,20 +644,17 @@ function calculateCostSavings(
     annualSavings,
     savingsPercent,
     currentMonthlyOOP: currentDrug?.memberCopayT1?.div(12).toNumber(),
-    recommendedMonthlyOOP: targetDrug?.memberCopayT1?.div(12).toNumber() ||
-      (currentDrug?.memberCopayT1?.div(12).mul(0.75).toNumber()),
+    recommendedMonthlyOOP: targetDrug?.memberCopayT1?.div(12).toNumber(),
   };
 }
 
 /**
- * Main function: Generate recommendations using LLM-enhanced workflow
+ * Main function: Generate biologic recommendations using LLM ranking
+ * Simplified architecture: Only recommends next best biologic (switching or initiation)
  */
 export async function generateLLMRecommendations(
   assessment: AssessmentInput
 ): Promise<{
-  isStable: boolean;
-  isFormularyOptimal: boolean;
-  quadrant: string;
   recommendations: any[];
   formularyReference?: any[];
   contraindicatedDrugs?: Array<{
@@ -1209,12 +824,6 @@ export async function generateLLMRecommendations(
   console.log(`Found current drug in formulary:`, currentFormularyDrug ? `YES - ${currentFormularyDrug.drugName} Tier ${currentFormularyDrug.tier}` : 'NO');
   console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`);
 
-  // Detect current dose reduction level (0%, 25%, or 50%)
-  const currentDoseReduction = currentBiologic
-    ? getDoseReductionLevel(currentBiologic.drugName, currentBiologic.frequency)
-    : 0;
-  console.log(`Current dose reduction level: ${currentDoseReduction}%`);
-
   // Find lowest tier available in formulary (relative tier detection)
   const indicatedDrugs = formularyDrugs.filter(drug =>
     filterByDiagnosis([drug], assessment.diagnosis).length > 0
@@ -1224,42 +833,9 @@ export async function generateLLMRecommendations(
   const currentTier = currentFormularyDrug?.tier || 999;
   console.log(`Formulary tier structure: Available tiers = [${availableTiers.join(', ')}], Lowest = ${lowestTierInFormulary}, Current = ${currentTier}`);
 
-  // Step 1: Determine quadrant using hard-coded rules (don't trust LLM for this)
-  const { isStable, isFormularyOptimal, quadrant} = determineQuadrantAndStatus(
-    assessment.isStable ?? (assessment.dlqiScore <= 4), // Use isStable if provided, fallback to DLQI
-    currentFormularyDrug || null,
-    hasCurrentBiologic
-  );
-  console.log(`━━━━━━ QUADRANT DETERMINATION DEBUG ━━━━━━`);
-  console.log(`Current biologic:`, currentBiologic?.drugName, currentBiologic?.dose, currentBiologic?.frequency);
-  console.log(`Generic drug name:`, genericDrugName);
-  console.log(`Current formulary drug found:`, currentFormularyDrug ? {
-    drugName: currentFormularyDrug.drugName,
-    genericName: currentFormularyDrug.genericName,
-    tier: currentFormularyDrug.tier,
-    requiresPA: currentFormularyDrug.requiresPA
-  } : 'NULL - NOT FOUND IN FORMULARY');
-  console.log(`Quadrant: ${quadrant}`);
-  console.log(`isStable: ${isStable} (Clinician input: ${assessment.isStable}, assumed >= 3 months)`);
-  console.log(`isFormularyOptimal: ${isFormularyOptimal} (Tier ${currentFormularyDrug?.tier}, PA: ${currentFormularyDrug?.requiresPA})`);
-  console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
-
-  // Step 2: Get LLM clinical reasoning
-  const triage = await triagePatient(
-    assessment,
-    genericDrugName || 'None',
-    currentFormularyDrug || null,
-    quadrant,
-    currentDoseReduction,
-    lowestTierInFormulary,
-    currentTier,
-    availableTiers
-  );
-  console.log('Triage result:', JSON.stringify(triage));
-
-  // Step 3: Retrieve structured clinical findings from database
+  // Retrieve structured clinical findings from database
   // Uses human-reviewed findings from ClinicalFinding table
-  const evidence = await retrieveStructuredFindings(genericDrugName, assessment.diagnosis, triage);
+  const evidence = await retrieveStructuredFindings(genericDrugName, assessment.diagnosis);
   console.log(`Retrieved ${evidence.length} structured clinical findings for LLM context`);
 
   // Step 4: Filter drugs by diagnosis, then by contraindications, then by failed therapies
@@ -1283,24 +859,22 @@ export async function generateLLMRecommendations(
     return costA - costB;
   });
 
-  // Step 4: LLM Recommendations
+  // LLM Recommendations: Rank next best biologics from formulary
   const rawLlmRecs = await getLLMRecommendationSuggestions(
     assessment,
     genericDrugName,
     currentBiologic,
-    triage,
     evidence,
     sortedFormularyDrugs,
     currentFormularyDrug || null,
     patientWithFormulary.contraindications,
-    currentDoseReduction,
     lowestTierInFormulary,
     currentTier,
     availableTiers
   );
 
   // Deduplicate and validate recommendations
-  // Filter out: duplicates, invalid drug names, unstable + dose reduction
+  // Filter out: duplicates, invalid drug names
   const seenDrugs = new Set<string>();
   const llmRecs = rawLlmRecs.filter(rec => {
     // Filter out placeholder/invalid drug names
@@ -1308,17 +882,6 @@ export async function generateLLMRecommendations(
     if (rec.drugName && invalidDrugNames.some(invalid => rec.drugName!.toLowerCase().includes(invalid))) {
       console.log(`  ⚠️  Removing invalid placeholder recommendation: ${rec.drugName}`);
       return false;
-    }
-
-    // Filter out dose reduction for unstable patients (DLQI > 4)
-    if (rec.type === 'DOSE_REDUCTION' && assessment.dlqiScore > 4) {
-      console.log(`  ⚠️  Removing dose reduction for unstable patient (DLQI: ${assessment.dlqiScore})`);
-      return false;
-    }
-
-    // Always include dose reduction and continue current (if valid)
-    if (rec.type === 'DOSE_REDUCTION' || rec.type === 'CONTINUE_CURRENT') {
-      return true;
     }
 
     // Check for duplicates
@@ -1342,11 +905,8 @@ export async function generateLLMRecommendations(
 
     const costData = calculateCostSavings(rec, currentFormularyDrug, targetDrug);
 
-    // For dose reduction and continue current, display the BRAND name (Humira) not generic (adalimumab)
-    // since Amjevita, Hyrimoz, and Humira are all adalimumab but different products
-    const displayDrugName = (rec.type === 'DOSE_REDUCTION' || rec.type === 'CONTINUE_CURRENT' || rec.type === 'OPTIMIZE_CURRENT') && currentBiologic
-      ? currentBiologic.drugName  // Brand name: "Humira"
-      : rec.drugName || genericDrugName;  // For switches, use target drug
+    // All recommendations are for target drugs (initiations/switches)
+    const displayDrugName = rec.drugName || genericDrugName;
 
     // Get FDA-approved dosing if LLM didn't provide specific dosing or used "Per label"
     let finalDose = rec.newDose || '';
@@ -1357,8 +917,8 @@ export async function generateLLMRecommendations(
                                   finalDose.toLowerCase().includes('per label') ||
                                   finalFrequency.toLowerCase().includes('per label');
 
-    if (needsDosingReference && rec.type !== 'DOSE_REDUCTION' && displayDrugName) {
-      // For switches, use FDA-approved dosing reference
+    if (needsDosingReference && displayDrugName) {
+      // Use FDA-approved dosing reference
       const standardDosing = getSpecificDrugDosing(displayDrugName);
       finalDose = standardDosing.dose;
       finalFrequency = standardDosing.frequency;
@@ -1374,15 +934,10 @@ export async function generateLLMRecommendations(
       rationale: rec.rationale,
       evidenceSources: evidence, // Use structured clinical findings from database
       monitoringPlan: rec.monitoringPlan,
-      // For DOSE_REDUCTION, use current drug's tier (no target drug, staying on same medication)
-      // For switches, use target drug's tier
-      tier: rec.type === 'DOSE_REDUCTION'
-        ? currentFormularyDrug?.tier
-        : (targetDrug?.tier || currentFormularyDrug?.tier),
+      // All recommendations are initiations, use target drug's tier
+      tier: targetDrug?.tier || currentFormularyDrug?.tier,
       // Convert string requiresPA to boolean (FormularyDrug uses String, Recommendation uses Boolean)
-      requiresPA: rec.type === 'DOSE_REDUCTION'
-        ? convertRequiresPAToBoolean(currentFormularyDrug?.requiresPA)
-        : convertRequiresPAToBoolean(targetDrug?.requiresPA || currentFormularyDrug?.requiresPA),
+      requiresPA: convertRequiresPAToBoolean(targetDrug?.requiresPA || currentFormularyDrug?.requiresPA),
       contraindicated: false, // LLM should handle contraindications in rationale
       contraindicationReason: undefined,
     };
@@ -1410,9 +965,6 @@ export async function generateLLMRecommendations(
   }));
 
   return {
-    isStable,
-    isFormularyOptimal,
-    quadrant,
     recommendations: recommendations.slice(0, 3),
     formularyReference,
     contraindicatedDrugs: contraindicatedDrugsFormatted,

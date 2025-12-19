@@ -96,9 +96,10 @@ export async function POST(request: NextRequest) {
           data: {
             assessmentId: assessment.id,
             patientId,
-            isStable: result.isStable,
-            isFormularyOptimal: result.isFormularyOptimal,
-            quadrant: result.quadrant,
+            // Simplified system no longer tracks these fields
+            isStable: null,
+            isFormularyOptimal: null,
+            quadrant: null,
             rank: rec.rank,
             type: rec.type,
             drugName: rec.drugName,

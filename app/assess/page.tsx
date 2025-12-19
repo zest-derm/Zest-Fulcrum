@@ -37,7 +37,6 @@ export default function AssessmentPage() {
   const [showOverrideWarning, setShowOverrideWarning] = useState(false);
   const [pendingBiologicChange, setPendingBiologicChange] = useState<string | null>(null);
   const [showHighCostOnly, setShowHighCostOnly] = useState(false); // Filter for high cost patients
-  const [showStabilityHelp, setShowStabilityHelp] = useState(false); // Stability decision support modal
   const [selectedPlanName, setSelectedPlanName] = useState<string>('');
   const [selectedFormularyVersion, setSelectedFormularyVersion] = useState<string>('');
 
@@ -652,51 +651,6 @@ export default function AssessmentPage() {
           </select>
         </div>
 
-        {/* Remission Status */}
-        <div>
-          <div className="flex items-center justify-between mb-3">
-            <label className="label mb-0">Remission Status *</label>
-            <button
-              type="button"
-              onClick={() => setShowStabilityHelp(true)}
-              className="text-sm text-primary-600 hover:text-primary-700 flex items-center gap-1"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              How do I define remission?
-            </button>
-          </div>
-          <div className="space-y-2">
-            <label className="flex items-center p-3 border rounded-md cursor-pointer hover:bg-gray-50">
-              <input
-                type="radio"
-                name="stability"
-                checked={formData.isStable}
-                onChange={() => setFormData(prev => ({ ...prev, isStable: true }))}
-                className="mr-3"
-              />
-              <div>
-                <div className="font-medium">Patient is in remission</div>
-                <div className="text-xs text-gray-500">Disease is well-controlled with current therapy</div>
-              </div>
-            </label>
-            <label className="flex items-center p-3 border rounded-md cursor-pointer hover:bg-gray-50">
-              <input
-                type="radio"
-                name="stability"
-                checked={!formData.isStable}
-                onChange={() => setFormData(prev => ({ ...prev, isStable: false }))}
-                className="mr-3"
-              />
-              <div>
-                <div className="font-medium">Disease is active</div>
-                <div className="text-xs text-gray-500">Disease is not adequately controlled</div>
-              </div>
-            </label>
-          </div>
-        </div>
-
         {/* Submit */}
         <div className="flex gap-4">
           <button
@@ -764,115 +718,6 @@ export default function AssessmentPage() {
                 className="flex-1 px-4 py-2 border border-transparent rounded-md text-sm font-medium text-white bg-orange-600 hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500"
               >
                 Yes, Override
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Remission Decision Support Modal */}
-      {showStabilityHelp && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 shadow-xl max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-start mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">
-                How to Define Remission in Psoriasis
-              </h3>
-              <button
-                onClick={() => setShowStabilityHelp(false)}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-
-            <div className="space-y-4 text-sm text-gray-700">
-              <div>
-                <h4 className="font-semibold text-gray-900 mb-2">Clinical Definition of Remission</h4>
-                <p className="mb-2">
-                  A patient is considered <strong>in remission</strong> when their psoriasis is well-controlled on current therapy,
-                  with minimal disease activity and impact on quality of life. Consider the patient in remission if they meet most of the following criteria:
-                </p>
-                <div className="bg-blue-100 border-l-4 border-blue-500 p-3 mt-3">
-                  <p className="text-sm text-blue-900">
-                    <strong>Note:</strong> For optimization purposes, patients should have been in remission for <strong>at least 3 months</strong> before considering dose reduction or therapeutic changes.
-                  </p>
-                </div>
-              </div>
-
-              <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
-                <h4 className="font-semibold text-blue-900 mb-2">DLQI (Dermatology Life Quality Index)</h4>
-                <p className="mb-2">Score range: 0-30 (lower is better)</p>
-                <ul className="list-disc list-inside space-y-1 text-blue-900">
-                  <li><strong>0-1:</strong> No impact on life - Patient is in remission</li>
-                  <li><strong>2-5:</strong> Small impact on life - Patient is in remission</li>
-                  <li><strong>6-10:</strong> Moderate impact - Consider disease is active</li>
-                  <li><strong>11-20:</strong> Large impact - Disease is active</li>
-                  <li><strong>21-30:</strong> Extremely large impact - Disease is active</li>
-                </ul>
-                <p className="mt-2 text-xs text-blue-800">
-                  <strong>Rule of thumb:</strong> DLQI ≤ 5 typically indicates remission
-                </p>
-              </div>
-
-              <div className="bg-purple-50 border border-purple-200 rounded-md p-4">
-                <h4 className="font-semibold text-purple-900 mb-2">BSA (Body Surface Area)</h4>
-                <p className="mb-2">Percentage of body covered by psoriasis</p>
-                <ul className="list-disc list-inside space-y-1 text-purple-900">
-                  <li><strong>&lt;2%:</strong> Mild psoriasis - Patient is in remission</li>
-                  <li><strong>2-10%:</strong> Moderate psoriasis - Evaluate if in remission based on location and impact</li>
-                  <li><strong>&gt;10%:</strong> Severe psoriasis - Disease is active</li>
-                </ul>
-              </div>
-
-              <div className="bg-green-50 border border-green-200 rounded-md p-4">
-                <h4 className="font-semibold text-green-900 mb-2">PGA (Physician Global Assessment)</h4>
-                <p className="mb-2">Score range: 0-5 (lower is better)</p>
-                <ul className="list-disc list-inside space-y-1 text-green-900">
-                  <li><strong>0 (Clear):</strong> No signs of psoriasis - Patient is in remission</li>
-                  <li><strong>1 (Almost Clear):</strong> Minimal signs - Patient is in remission</li>
-                  <li><strong>2 (Mild):</strong> Mild disease - Disease may be active</li>
-                  <li><strong>3-5:</strong> Moderate to severe - Disease is active</li>
-                </ul>
-              </div>
-
-              <div className="bg-amber-50 border border-amber-200 rounded-md p-4">
-                <h4 className="font-semibold text-amber-900 mb-2">IGA (Investigator Global Assessment)</h4>
-                <p className="mb-2">Score range: 0-4 (lower is better)</p>
-                <ul className="list-disc list-inside space-y-1 text-amber-900">
-                  <li><strong>0 (Clear):</strong> No inflammatory signs - Patient is in remission</li>
-                  <li><strong>1 (Almost Clear):</strong> Minimal signs - Patient is in remission</li>
-                  <li><strong>2 (Mild):</strong> Mild disease - Disease may be active</li>
-                  <li><strong>3-4:</strong> Moderate to severe - Disease is active</li>
-                </ul>
-              </div>
-
-              <div>
-                <h4 className="font-semibold text-gray-900 mb-2">Additional Considerations</h4>
-                <ul className="list-disc list-inside space-y-1">
-                  <li>Duration of remission: Patient should maintain control for at least 3 months</li>
-                  <li>Special areas: Psoriasis on palms, soles, scalp, or genitals has greater impact even with lower BSA</li>
-                  <li>Patient satisfaction: Patient reports being satisfied with current level of control</li>
-                  <li>No recent flares: No significant disease worsening in past 3-6 months</li>
-                </ul>
-              </div>
-
-              <div className="bg-amber-50 border border-amber-200 rounded-md p-3">
-                <p className="text-xs text-amber-900">
-                  <strong>Note:</strong> Use your clinical judgment. These are guidelines, not absolute rules.
-                  Consider the whole patient picture including comorbidities, treatment goals, and patient preferences.
-                </p>
-              </div>
-            </div>
-
-            <div className="mt-6">
-              <button
-                onClick={() => setShowStabilityHelp(false)}
-                className="w-full px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
-              >
-                Close
               </button>
             </div>
           </div>
