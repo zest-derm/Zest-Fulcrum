@@ -3,9 +3,9 @@
 export const dynamic = 'force-dynamic';
 
 import { useState, useEffect } from 'react';
-import { Trash2, FileText, Database, Users, BookOpen, Calendar, AlertCircle, CheckCircle, Eye, Building2 } from 'lucide-react';
+import { Trash2, Database, BookOpen, Calendar, AlertCircle, CheckCircle, Eye, Building2 } from 'lucide-react';
 
-type DataTab = 'knowledge' | 'formulary' | 'claims' | 'uploads' | 'plans';
+type DataTab = 'knowledge' | 'formulary' | 'uploads' | 'plans';
 
 interface KnowledgeDoc {
   id: string;
@@ -25,13 +25,6 @@ interface FormularyDataset {
   fileName: string;
 }
 
-interface ClaimDataset {
-  id: string;
-  datasetLabel: string;
-  claimCount: number;
-  uploadedAt: Date;
-  fileName: string;
-}
 
 interface UploadLog {
   id: string;
@@ -55,7 +48,6 @@ export default function DataManagementPage() {
   const [activeTab, setActiveTab] = useState<DataTab>('knowledge');
   const [knowledge, setKnowledge] = useState<KnowledgeDoc[]>([]);
   const [formulary, setFormulary] = useState<FormularyDataset[]>([]);
-  const [claims, setClaims] = useState<ClaimDataset[]>([]);
   const [uploads, setUploads] = useState<UploadLog[]>([]);
   const [plans, setPlans] = useState<InsurancePlan[]>([]);
   const [loading, setLoading] = useState(true);
@@ -96,9 +88,6 @@ export default function DataManagementPage() {
             case 'formulary':
               setFormulary([]);
               break;
-            case 'claims':
-              setClaims([]);
-              break;
             case 'uploads':
               setUploads([]);
               break;
@@ -115,9 +104,6 @@ export default function DataManagementPage() {
           case 'formulary':
             setFormulary(arrayData);
             break;
-          case 'claims':
-            setClaims(arrayData);
-            break;
           case 'uploads':
             setUploads(arrayData);
             break;
@@ -132,9 +118,6 @@ export default function DataManagementPage() {
           break;
         case 'formulary':
           setFormulary([]);
-          break;
-        case 'claims':
-          setClaims([]);
           break;
         case 'uploads':
           setUploads([]);
@@ -196,7 +179,7 @@ export default function DataManagementPage() {
     }
   };
 
-  const handleView = (id: string, type: 'formulary' | 'claims') => {
+  const handleView = (id: string, type: 'formulary') => {
     // Open CSV download in new window
     const url = `/api/admin/data?type=${type}&action=view&id=${id}`;
     window.open(url, '_blank');
@@ -205,7 +188,6 @@ export default function DataManagementPage() {
   const tabs = [
     { id: 'knowledge' as DataTab, label: 'Knowledge Base', icon: BookOpen, count: knowledge.length },
     { id: 'formulary' as DataTab, label: 'Formulary', icon: Database, count: formulary.length },
-    { id: 'claims' as DataTab, label: 'Claims', icon: FileText, count: claims.length },
     { id: 'plans' as DataTab, label: 'Insurance Plans', icon: Building2, count: plans.length },
     { id: 'uploads' as DataTab, label: 'Upload History', icon: Calendar, count: uploads.length },
   ];
@@ -412,75 +394,6 @@ export default function DataManagementPage() {
                   <div className="text-center py-12">
                     <Database className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                     <p className="text-gray-500">No formulary datasets uploaded</p>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Claims Datasets Table */}
-            {activeTab === 'claims' && (
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Dataset Label
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Claims
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Uploaded
-                      </th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Actions
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {claims.map((dataset) => (
-                      <tr key={dataset.id} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 text-sm font-medium text-gray-900">
-                          {dataset.datasetLabel}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {dataset.claimCount} claims
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {new Date(dataset.uploadedAt).toLocaleDateString()}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                          <button
-                            onClick={() => handleView(dataset.id, 'claims')}
-                            className="text-primary-600 hover:text-primary-900 mr-3 transition-all duration-150 hover:scale-110 active:scale-95"
-                            title="View/Download dataset as CSV"
-                          >
-                            <Eye className="w-4 h-4 inline" />
-                          </button>
-                          <button
-                            onClick={() => handleDelete(dataset.id, 'claims')}
-                            disabled={deleting === dataset.id}
-                            className="text-red-600 hover:text-red-900 disabled:opacity-50 transition-all duration-150 hover:scale-110 active:scale-95"
-                            title="Delete entire dataset"
-                          >
-                            {deleting === dataset.id ? (
-                              <svg className="spinner w-4 h-4 inline" viewBox="0 0 24 24" fill="none">
-                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                              </svg>
-                            ) : (
-                              <Trash2 className="w-4 h-4 inline" />
-                            )}
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                {claims.length === 0 && (
-                  <div className="text-center py-12">
-                    <FileText className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                    <p className="text-gray-500">No claims datasets uploaded</p>
                   </div>
                 )}
               </div>
