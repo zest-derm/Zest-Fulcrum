@@ -303,11 +303,11 @@ model Assessment {
   patientId              String?        // Optional to support PHI-free assessments
   planId                 String?        // Insurance plan for PHI-free assessments
   providerId             String?        // Provider who created assessment
+  medicationType         String?        // "biologic" or "topical" - filters recommendation type
   diagnosis              DiagnosisType
   hasPsoriaticArthritis  Boolean        @default(false)
   dlqiScore              Int            // 0-30
-  monthsStable           Int
-  additionalNotes        String?
+  bmi                    String?        // "<25", "25-30", ">30" - for future logic
   currentBiologicName    String?        // Current biologic drug name (for PHI-free assessments)
   currentBiologicDose    String?        // Current biologic dose
   currentBiologicFrequency String?      // Current biologic frequency

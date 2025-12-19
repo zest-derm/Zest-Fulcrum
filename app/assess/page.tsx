@@ -45,6 +45,7 @@ export default function AssessmentPage() {
     providerId: '',
     patientId: '',
     planId: '',
+    medicationType: 'biologic' as 'biologic' | 'topical',
     notOnBiologic: false,
     currentBiologic: '',
     dose: '',
@@ -54,8 +55,7 @@ export default function AssessmentPage() {
     contraindications: [] as string[],
     failedTherapies: [] as string[],
     isStable: true,
-    monthsStable: 3,
-    additionalNotes: '',
+    bmi: '' as '' | '<25' | '25-30' | '>30',
   });
 
   useEffect(() => {
@@ -311,6 +311,7 @@ export default function AssessmentPage() {
           providerId: formData.providerId,
           patientId: formData.patientId || null,
           planId: formData.planId,
+          medicationType: formData.medicationType,
           currentBiologic: formData.notOnBiologic ? null : {
             drugName: formData.currentBiologic,
             dose: formData.dose,
@@ -321,8 +322,7 @@ export default function AssessmentPage() {
           contraindications: formData.contraindications,
           failedTherapies: formData.failedTherapies,
           isStable: formData.isStable,
-          monthsStable: formData.monthsStable,
-          additionalNotes: formData.additionalNotes,
+          bmi: formData.bmi || null,
         }),
       });
 
@@ -441,6 +441,23 @@ export default function AssessmentPage() {
           Select the partner and their corresponding formulary version
         </p>
 
+        {/* Medication Type */}
+        <div>
+          <label className="label">What type of medication would you like recommended? *</label>
+          <select
+            className="input w-full"
+            value={formData.medicationType}
+            onChange={(e) => setFormData(prev => ({ ...prev, medicationType: e.target.value as 'biologic' | 'topical' }))}
+            required
+          >
+            <option value="biologic">Biologic</option>
+            <option value="topical">Topical</option>
+          </select>
+          <p className="text-xs text-gray-500 mt-1">
+            Recommendations will be filtered to only show this medication type
+          </p>
+        </div>
+
         {/* Current Biologic */}
         <div>
           <label className="flex items-center mb-3">
@@ -490,29 +507,41 @@ export default function AssessmentPage() {
           )}
         </div>
 
-        {/* Failed Therapies */}
+        {/* Inappropriate Biologics */}
         <div>
-          <label className="label">Failed Therapies (optional)</label>
+          <label className="label">Are there any biologics that are inappropriate for this patient? (optional)</label>
           <p className="text-xs text-gray-500 mb-2">
-            Select biologics that have previously failed for this patient. These will be excluded from recommendations.
+            Select biologics that should be excluded from recommendations (e.g., previous failures, allergies, contraindications).
           </p>
-          <BiologicInput
-            value={{
-              drugName: '',
-              dose: '',
-              frequency: '',
-            }}
-            onChange={(value) => {
-              if (value.drugName && !formData.failedTherapies.includes(value.drugName)) {
+          <select
+            className="input w-full"
+            onChange={(e) => {
+              const drugName = e.target.value;
+              if (drugName && !formData.failedTherapies.includes(drugName)) {
                 setFormData(prev => ({
                   ...prev,
-                  failedTherapies: [...prev.failedTherapies, value.drugName],
+                  failedTherapies: [...prev.failedTherapies, drugName],
                 }));
+                e.target.value = ''; // Reset dropdown
               }
             }}
-            required={false}
-            placeholder="Select a failed therapy to add"
-          />
+            defaultValue=""
+          >
+            <option value="">Select a biologic to exclude</option>
+            <option value="Humira (adalimumab)">Humira (adalimumab)</option>
+            <option value="Enbrel (etanercept)">Enbrel (etanercept)</option>
+            <option value="Stelara (ustekinumab)">Stelara (ustekinumab)</option>
+            <option value="Cosentyx (secukinumab)">Cosentyx (secukinumab)</option>
+            <option value="Taltz (ixekizumab)">Taltz (ixekizumab)</option>
+            <option value="Skyrizi (risankizumab)">Skyrizi (risankizumab)</option>
+            <option value="Tremfya (guselkumab)">Tremfya (guselkumab)</option>
+            <option value="Otezla (apremilast)">Otezla (apremilast)</option>
+            <option value="Dupixent (dupilumab)">Dupixent (dupilumab)</option>
+            <option value="Rinvoq (upadacitinib)">Rinvoq (upadacitinib)</option>
+            <option value="Cimzia (certolizumab)">Cimzia (certolizumab)</option>
+            <option value="Ilumya (tildrakizumab)">Ilumya (tildrakizumab)</option>
+            <option value="Siliq (brodalumab)">Siliq (brodalumab)</option>
+          </select>
           {formData.failedTherapies.length > 0 && (
             <div className="mt-3 flex flex-wrap gap-2">
               {formData.failedTherapies.map((therapy) => (
@@ -608,6 +637,21 @@ export default function AssessmentPage() {
           </div>
         </div>
 
+        {/* BMI */}
+        <div>
+          <label className="label">BMI (optional)</label>
+          <select
+            className="input w-full"
+            value={formData.bmi}
+            onChange={(e) => setFormData(prev => ({ ...prev, bmi: e.target.value as '' | '<25' | '25-30' | '>30' }))}
+          >
+            <option value="">Select BMI range</option>
+            <option value="<25">&lt;25 (normal)</option>
+            <option value="25-30">25-30 (overweight)</option>
+            <option value=">30">&gt;30 (obese)</option>
+          </select>
+        </div>
+
         {/* Remission Status */}
         <div>
           <div className="flex items-center justify-between mb-3">
@@ -651,32 +695,6 @@ export default function AssessmentPage() {
               </div>
             </label>
           </div>
-        </div>
-
-        {/* Time in Remission */}
-        <div>
-          <label className="label">Time in Current Remission (months) *</label>
-          <input
-            type="number"
-            min="0"
-            max="120"
-            className="input w-full"
-            value={formData.monthsStable}
-            onChange={(e) => setFormData({ ...formData, monthsStable: Number(e.target.value) })}
-            required
-          />
-        </div>
-
-        {/* Additional Notes */}
-        <div>
-          <label className="label">Additional Notes (optional)</label>
-          <textarea
-            className="input w-full"
-            rows={4}
-            value={formData.additionalNotes}
-            onChange={(e) => setFormData({ ...formData, additionalNotes: e.target.value })}
-            placeholder="Any additional clinical context..."
-          />
         </div>
 
         {/* Submit */}
@@ -794,26 +812,35 @@ export default function AssessmentPage() {
                 </p>
               </div>
 
-              <div className="bg-green-50 border border-green-200 rounded-md p-4">
-                <h4 className="font-semibold text-green-900 mb-2">PASI (Psoriasis Area and Severity Index)</h4>
-                <p className="mb-2">Score range: 0-72 (lower is better)</p>
-                <ul className="list-disc list-inside space-y-1 text-green-900">
-                  <li><strong>0-5:</strong> Mild psoriasis - Patient is in remission</li>
-                  <li><strong>5-10:</strong> Moderate psoriasis - May be in remission depending on patient goals</li>
-                  <li><strong>10+:</strong> Severe psoriasis - Disease is active</li>
-                </ul>
-                <p className="mt-2 text-xs text-green-800">
-                  <strong>Clinical trials standard:</strong> PASI 75 (75% improvement from baseline) or better indicates good response
-                </p>
-              </div>
-
               <div className="bg-purple-50 border border-purple-200 rounded-md p-4">
                 <h4 className="font-semibold text-purple-900 mb-2">BSA (Body Surface Area)</h4>
                 <p className="mb-2">Percentage of body covered by psoriasis</p>
                 <ul className="list-disc list-inside space-y-1 text-purple-900">
-                  <li><strong>&lt;3%:</strong> Mild psoriasis - Patient is likely in remission</li>
-                  <li><strong>3-10%:</strong> Moderate psoriasis - Evaluate if in remission based on location and impact</li>
+                  <li><strong>&lt;2%:</strong> Mild psoriasis - Patient is in remission</li>
+                  <li><strong>2-10%:</strong> Moderate psoriasis - Evaluate if in remission based on location and impact</li>
                   <li><strong>&gt;10%:</strong> Severe psoriasis - Disease is active</li>
+                </ul>
+              </div>
+
+              <div className="bg-green-50 border border-green-200 rounded-md p-4">
+                <h4 className="font-semibold text-green-900 mb-2">PGA (Physician Global Assessment)</h4>
+                <p className="mb-2">Score range: 0-5 (lower is better)</p>
+                <ul className="list-disc list-inside space-y-1 text-green-900">
+                  <li><strong>0 (Clear):</strong> No signs of psoriasis - Patient is in remission</li>
+                  <li><strong>1 (Almost Clear):</strong> Minimal signs - Patient is in remission</li>
+                  <li><strong>2 (Mild):</strong> Mild disease - Disease may be active</li>
+                  <li><strong>3-5:</strong> Moderate to severe - Disease is active</li>
+                </ul>
+              </div>
+
+              <div className="bg-amber-50 border border-amber-200 rounded-md p-4">
+                <h4 className="font-semibold text-amber-900 mb-2">IGA (Investigator Global Assessment)</h4>
+                <p className="mb-2">Score range: 0-4 (lower is better)</p>
+                <ul className="list-disc list-inside space-y-1 text-amber-900">
+                  <li><strong>0 (Clear):</strong> No inflammatory signs - Patient is in remission</li>
+                  <li><strong>1 (Almost Clear):</strong> Minimal signs - Patient is in remission</li>
+                  <li><strong>2 (Mild):</strong> Mild disease - Disease may be active</li>
+                  <li><strong>3-4:</strong> Moderate to severe - Disease is active</li>
                 </ul>
               </div>
 
