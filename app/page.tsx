@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic';
 
 import Link from "next/link";
 import { ArrowRight, Upload, FileText, BarChart3 } from "lucide-react";
+import PasswordProtectedLink from "@/components/PasswordProtectedLink";
 
 export default function HomePage() {
   return (
@@ -30,9 +31,9 @@ export default function HomePage() {
           <p className="text-gray-600 mb-4">
             Upload formulary sheets, claims data, and clinical evidence through simple CSV/PDF uploads
           </p>
-          <Link href="/admin" className="text-primary-600 hover:text-primary-700 font-medium flex items-center transition-all duration-150 group">
+          <PasswordProtectedLink href="/admin" className="text-primary-600 hover:text-primary-700 font-medium flex items-center transition-all duration-150 group" storageKey="data_upload_authenticated">
             Go to Admin <ArrowRight className="w-4 h-4 ml-1 transition-transform duration-150 group-hover:translate-x-1" />
-          </Link>
+          </PasswordProtectedLink>
         </div>
 
         <div className="card card-hover transform transition-all duration-200 hover:-translate-y-1">
@@ -63,9 +64,9 @@ export default function HomePage() {
           <p className="text-gray-600 mb-4">
             Upload and manage formulary data, insurance plans, and clinical knowledge base
           </p>
-          <Link href="/admin/data" className="text-primary-600 hover:text-primary-700 font-medium flex items-center transition-all duration-150 group">
+          <PasswordProtectedLink href="/admin/data" className="text-primary-600 hover:text-primary-700 font-medium flex items-center transition-all duration-150 group" storageKey="manage_data_authenticated">
             Manage Data <ArrowRight className="w-4 h-4 ml-1 transition-transform duration-150 group-hover:translate-x-1" />
-          </Link>
+          </PasswordProtectedLink>
         </div>
       </div>
 

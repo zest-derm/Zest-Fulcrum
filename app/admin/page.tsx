@@ -5,6 +5,7 @@ export const dynamic = 'force-dynamic';
 import { useState, useEffect } from 'react';
 import { Upload, CheckCircle, AlertCircle, FileSpreadsheet, BookOpen, FolderOpen, X } from 'lucide-react';
 import Link from 'next/link';
+import PasswordProtection from '@/components/PasswordProtection';
 
 type UploadType = 'formulary' | 'knowledge';
 
@@ -278,7 +279,8 @@ export default function AdminPage() {
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+    <PasswordProtection storageKey="data_upload_authenticated">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
       <div className="mb-8 flex items-start justify-between">
         <div>
           <h1 className="mb-2">Data Upload</h1>
@@ -454,6 +456,7 @@ export default function AdminPage() {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </PasswordProtection>
   );
 }
