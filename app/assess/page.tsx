@@ -43,6 +43,7 @@ export default function AssessmentPage() {
   const [assessmentStartedAt] = useState<Date>(new Date()); // Track when assessment started
 
   const [formData, setFormData] = useState({
+    mrn: '',
     providerId: '',
     patientId: '',
     planId: '',
@@ -309,6 +310,7 @@ export default function AssessmentPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          mrn: formData.mrn,
           providerId: formData.providerId,
           patientId: formData.patientId || null,
           planId: formData.planId,
@@ -376,6 +378,23 @@ export default function AssessmentPage() {
           </select>
           <p className="text-xs text-gray-500 mt-1">
             Select the provider performing this assessment
+          </p>
+        </div>
+
+        {/* MRN Input */}
+        <div>
+          <label className="label">Medical Record Number (MRN) *</label>
+          <input
+            type="text"
+            className="input w-full"
+            value={formData.mrn}
+            onChange={(e) => setFormData(prev => ({ ...prev, mrn: e.target.value }))}
+            placeholder="Enter 5-9 digit MRN"
+            pattern="[0-9]{5,9}"
+            required
+          />
+          <p className="text-xs text-gray-500 mt-1">
+            Enter the patient's medical record number (5-9 digits)
           </p>
         </div>
 

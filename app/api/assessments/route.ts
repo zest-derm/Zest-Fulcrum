@@ -7,6 +7,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const {
+      mrn,
       providerId,
       patientId,
       planId,
@@ -36,6 +37,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (!mrn) {
+      return NextResponse.json(
+        { error: 'MRN is required' },
+        { status: 400 }
+      );
+    }
+
     // Convert isStable boolean to DLQI score for database compatibility
     // Stable = DLQI 2 (small impact), Unstable = DLQI 8 (moderate impact)
     const dlqiScore = isStable ? 2 : 8;
@@ -43,6 +51,7 @@ export async function POST(request: NextRequest) {
     // Create assessment
     const assessment = await prisma.assessment.create({
       data: {
+        mrn: mrn,
         providerId: providerId,
         patientId: patientId || null,
         planId: planId,

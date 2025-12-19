@@ -29,9 +29,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!mrn) {
+    // Fetch MRN from assessment (required field in assessment now)
+    const assessment = await prisma.assessment.findUnique({
+      where: { id: assessmentId },
+      select: { mrn: true },
+    });
+
+    if (!assessment || !assessment.mrn) {
       return NextResponse.json(
-        { error: 'MRN is required' },
+        { error: 'Assessment not found or MRN missing' },
         { status: 400 }
       );
     }
@@ -41,7 +47,7 @@ export async function POST(request: NextRequest) {
       data: {
         assessmentId,
         recommendationId: recommendationId || null,
-        mrn,
+        mrn: assessment.mrn,
         providerId: providerId || null,
         selectedRank: selectedRank || null,
         selectedTier: selectedTier || null,

@@ -294,7 +294,7 @@ export default function DataRoom() {
     ? data.assessmentDetails
         .filter((a) => {
           const matchesSearch =
-            a.mrn.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            (a.mrn && a.mrn.toLowerCase().includes(searchTerm.toLowerCase())) ||
             a.providerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
             (a.patientName &&
               a.patientName.toLowerCase().includes(searchTerm.toLowerCase()));
