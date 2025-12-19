@@ -6,7 +6,7 @@ async function main() {
   console.log('Adding providers...');
 
   // Only create providers if they don't exist
-  const providers = ['Neil Jairath', 'Rachel Day', 'Pearl Dhaliwal'];
+  const providers = ['Rachel Day', 'Nadia Esmaeili', 'Deanna Moore', 'Rochelle Lamb', 'Olivia Deitcher'];
 
   for (const name of providers) {
     const existing = await prisma.provider.findUnique({

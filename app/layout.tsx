@@ -26,9 +26,6 @@ export default function RootLayout({
                     Zest Fulcrum
                   </Link>
                   <div className="hidden md:flex space-x-6">
-                    <Link href="/patients" className="text-gray-700 hover:text-primary-600 transition-all duration-150 active:scale-95 inline-block">
-                      Patients
-                    </Link>
                     <Link href="/assess" className="text-gray-700 hover:text-primary-600 transition-all duration-150 active:scale-95 inline-block">
                       New Assessment
                     </Link>

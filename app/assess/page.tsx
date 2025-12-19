@@ -42,7 +42,6 @@ export default function AssessmentPage() {
   const [selectedFormularyVersion, setSelectedFormularyVersion] = useState<string>('');
 
   const [formData, setFormData] = useState({
-    mrn: '',
     providerId: '',
     patientId: '',
     planId: '',
@@ -239,20 +238,15 @@ export default function AssessmentPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Validate MRN
-    if (!formData.mrn) {
-      alert('Please enter a Medical Record Number (MRN).');
-      return;
-    }
-    const mrnDigits = formData.mrn.replace(/\D/g, ''); // Remove non-digits
-    if (mrnDigits.length < 5 || mrnDigits.length > 9) {
-      alert('MRN must be 5-9 digits.');
+    // Validate provider is selected
+    if (!formData.providerId) {
+      alert('Please select a provider.');
       return;
     }
 
-    // Validate insurance plan is selected
+    // Validate partner is selected
     if (!formData.planId) {
-      alert('Please select an insurance plan.');
+      alert('Please select a partner and formulary.');
       return;
     }
 
@@ -314,8 +308,7 @@ export default function AssessmentPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          mrn: mrnDigits, // Send only digits
-          providerId: formData.providerId || null,
+          providerId: formData.providerId,
           patientId: formData.patientId || null,
           planId: formData.planId,
           currentBiologic: formData.notOnBiologic ? null : {
@@ -359,40 +352,18 @@ export default function AssessmentPage() {
     <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
       <h1 className="mb-2">New Assessment</h1>
       <p className="text-gray-600 mb-8">
-        Complete this form to generate cost-saving recommendations. Select a patient to auto-populate data, or enter information manually.
+        Complete this form to generate cost-saving recommendations for your patient.
       </p>
 
       <form onSubmit={handleSubmit} className="card space-y-6">
-        {/* MRN Input */}
-        <div>
-          <label className="label">Medical Record Number (MRN) *</label>
-          <input
-            type="text"
-            className="input w-full"
-            value={formData.mrn}
-            onChange={(e) => {
-              // Only allow digits
-              const value = e.target.value.replace(/\D/g, '');
-              if (value.length <= 9) {
-                setFormData(prev => ({ ...prev, mrn: value }));
-              }
-            }}
-            placeholder="Enter 5-9 digit MRN"
-            required
-            maxLength={9}
-          />
-          <p className="text-xs text-gray-500 mt-1">
-            Required: 5-9 digits
-          </p>
-        </div>
-
         {/* Provider Selection */}
         <div>
-          <label className="label">Provider (optional)</label>
+          <label className="label">Provider *</label>
           <select
             className="input w-full"
             value={formData.providerId}
             onChange={(e) => setFormData(prev => ({ ...prev, providerId: e.target.value }))}
+            required
           >
             <option value="">Select a provider</option>
             {providers.map(provider => (
@@ -406,66 +377,22 @@ export default function AssessmentPage() {
           </p>
         </div>
 
-        {/* Patient Selection */}
-        <div>
-          <label className="label">Patient (optional)</label>
-
-          {/* High Cost Filter Checkbox */}
-          <div className="mb-3 p-3 bg-amber-50 border border-amber-200 rounded-md">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={showHighCostOnly}
-                onChange={(e) => setShowHighCostOnly(e.target.checked)}
-                className="w-4 h-4 text-primary-600 rounded focus:ring-primary-500"
-              />
-              <span className="text-sm font-medium text-amber-900">
-                Show High Cost Patients Only
-              </span>
-            </label>
-            <p className="text-xs text-amber-700 mt-1 ml-6">
-              Only high cost patients are eligible for this optimization service
-            </p>
-          </div>
-
-          <select
-            className="input w-full"
-            value={formData.patientId}
-            onChange={(e) => handlePatientChange(e.target.value)}
-          >
-            <option value="">Select a patient (or leave blank for manual entry)</option>
-            {Array.isArray(patients) &&
-              patients
-                .filter(p => !showHighCostOnly || p.costDesignation === 'HIGH_COST')
-                .map(p => (
-                  <option key={p.id} value={p.id}>
-                    {p.firstName} {p.lastName} {p.externalId ? `(${p.externalId})` : ''}
-                    {p.costDesignation === 'HIGH_COST' ? ' [HIGH COST]' : ''}
-                  </option>
-                ))
-            }
-          </select>
-          <p className="text-xs text-gray-500 mt-1">
-            Auto-fills claims data, health plan, and formulary information
-          </p>
-        </div>
-
-        {/* Insurance Plan Selection - Two Step */}
+        {/* Partner Selection - Two Step */}
         <div className="grid md:grid-cols-2 gap-4">
-          {/* Step 1: Select Plan Name */}
+          {/* Step 1: Select Partner Name */}
           <div>
-            <label className="label">Insurance Plan Name *</label>
+            <label className="label">Partner Name *</label>
             <select
               className="input w-full"
               value={selectedPlanName}
               onChange={(e) => {
                 setSelectedPlanName(e.target.value);
-                setSelectedFormularyVersion(''); // Reset formulary version when plan changes
+                setSelectedFormularyVersion(''); // Reset formulary version when partner changes
                 setFormData(prev => ({ ...prev, planId: '' })); // Reset planId
               }}
               required
             >
-              <option value="">Select plan name</option>
+              <option value="">Select partner</option>
               {Array.from(new Set(insurancePlans.map(p => p.planName))).map(name => (
                 <option key={name} value={name}>
                   {name}
@@ -478,7 +405,7 @@ export default function AssessmentPage() {
           <div>
             <label className="label">
               Formulary Version *
-              {!selectedPlanName && <span className="ml-1 text-xs text-gray-400">(select plan first)</span>}
+              {!selectedPlanName && <span className="ml-1 text-xs text-gray-400">(select partner first)</span>}
             </label>
             <select
               className={`input w-full ${!selectedPlanName ? 'bg-gray-200 text-gray-500 cursor-not-allowed opacity-60' : ''}`}
@@ -511,7 +438,7 @@ export default function AssessmentPage() {
           </div>
         </div>
         <p className="text-xs text-gray-500 mt-1">
-          {formData.patientId ? 'Auto-populated from patient record' : 'Required to determine formulary and coverage'}
+          Select the partner and their corresponding formulary version
         </p>
 
         {/* Current Biologic */}

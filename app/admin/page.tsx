@@ -3,10 +3,10 @@
 export const dynamic = 'force-dynamic';
 
 import { useState, useEffect } from 'react';
-import { Upload, CheckCircle, AlertCircle, FileSpreadsheet, Database, Users, BookOpen, FolderOpen, X } from 'lucide-react';
+import { Upload, CheckCircle, AlertCircle, FileSpreadsheet, BookOpen, FolderOpen, X } from 'lucide-react';
 import Link from 'next/link';
 
-type UploadType = 'formulary' | 'claims' | 'eligibility' | 'knowledge';
+type UploadType = 'formulary' | 'knowledge';
 
 interface UploadResult {
   success: boolean;
@@ -50,7 +50,7 @@ export default function AdminPage() {
   };
 
   const handleFileSelected = (type: UploadType, files: FileList) => {
-    if (type === 'formulary' || type === 'claims') {
+    if (type === 'formulary') {
       // Show modal for dataset labeling
       setPendingUpload({ type, files });
       setDatasetLabel('');
@@ -58,7 +58,7 @@ export default function AdminPage() {
       setCreatingNewPlan(false);
       setShowModal(true);
     } else {
-      // No labeling needed for eligibility and knowledge
+      // No labeling needed for knowledge
       handleUpload(type, files, null, null);
     }
   };
@@ -169,9 +169,7 @@ export default function AdminPage() {
 
   const getDatasetLabelGuidance = (type: UploadType) => {
     if (type === 'formulary') {
-      return 'e.g., "Aetna December 2024 Formulary" (Insurance Plan + Month + Year)';
-    } else if (type === 'claims') {
-      return 'e.g., "Molina Q1 2024 claims" (Insurance + Quarter + Year)';
+      return 'e.g., "United_Commercial" (Partner Name_Business Line)';
     }
     return '';
   };
@@ -285,7 +283,7 @@ export default function AdminPage() {
         <div>
           <h1 className="mb-2">Data Upload</h1>
           <p className="text-gray-600">
-            Upload CSV files for formulary data, pharmacy claims, and patient eligibility
+            Upload CSV files for formulary data and clinical knowledge
           </p>
         </div>
         <Link
@@ -303,22 +301,6 @@ export default function AdminPage() {
           title="Formulary Data"
           description="Upload drug formulary with tiers, costs, and PA requirements"
           icon={FileSpreadsheet}
-          acceptedFormats=".csv"
-        />
-
-        <UploadCard
-          type="claims"
-          title="Pharmacy Claims"
-          description="Upload historical pharmacy claims data"
-          icon={Database}
-          acceptedFormats=".csv"
-        />
-
-        <UploadCard
-          type="eligibility"
-          title="Patient Eligibility"
-          description="Upload patient demographics and plan enrollment"
-          icon={Users}
           acceptedFormats=".csv"
         />
 
@@ -342,26 +324,6 @@ export default function AdminPage() {
             </code>
             <p className="text-xs text-gray-500">
               Optional: Formulation, Strength, Step Therapy, Restrictions, Quantity Limit, NDC Code
-            </p>
-          </div>
-          <div>
-            <h4 className="font-semibold text-gray-900 mb-2">Claims CSV</h4>
-            <p className="text-xs text-gray-600 mb-2">Required columns: Patient ID, Drug Name, Fill Date, Days Supply, Quantity</p>
-            <code className="block bg-gray-100 p-2 rounded text-xs overflow-x-auto mb-2">
-              Patient ID, Drug Name, Fill Date, Days Supply, Quantity, Out of Pocket, Plan Paid
-            </code>
-            <p className="text-xs text-gray-500">
-              Optional: NDC Code, True Drug Cost
-            </p>
-          </div>
-          <div>
-            <h4 className="font-semibold text-gray-900 mb-2">Eligibility CSV</h4>
-            <p className="text-xs text-gray-600 mb-2">Required columns: First Name, Last Name, Date of Birth</p>
-            <code className="block bg-gray-100 p-2 rounded text-xs overflow-x-auto mb-2">
-              Patient ID, First Name, Last Name, Date of Birth, Formulary Plan, Employer, City, State
-            </code>
-            <p className="text-xs text-gray-500">
-              Optional: Street Address, Email, Phone, Eligibility Start/End Date, Cost Designation
             </p>
           </div>
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
@@ -406,7 +368,7 @@ export default function AdminPage() {
 
               {pendingUpload.type === 'formulary' && (
                 <div>
-                  <label className="label">Insurance Plan *</label>
+                  <label className="label">Partner *</label>
                   {!creatingNewPlan ? (
                     <>
                       <select
@@ -415,7 +377,7 @@ export default function AdminPage() {
                         onChange={(e) => setSelectedPlanId(e.target.value)}
                         required
                       >
-                        <option value="">Select a plan</option>
+                        <option value="">Select a partner</option>
                         {insurancePlans.map(plan => (
                           <option key={plan.id} value={plan.id}>
                             {plan.planName} ({plan.payerName})
@@ -427,7 +389,7 @@ export default function AdminPage() {
                         onClick={() => setCreatingNewPlan(true)}
                         className="text-sm text-primary-600 hover:text-primary-700 mt-2"
                       >
-                        + Create New Plan
+                        + Create New Partner
                       </button>
                     </>
                   ) : (
@@ -437,15 +399,18 @@ export default function AdminPage() {
                         className="input w-full"
                         value={newPlanName}
                         onChange={(e) => setNewPlanName(e.target.value)}
-                        placeholder="Plan Name (e.g., Aetna)"
+                        placeholder="Partner Name (e.g., United, Aetna)"
                         required
                       />
+                      <p className="text-xs text-gray-500 -mt-1">
+                        Enter just the partner name - this will be used for grouping formularies
+                      </p>
                       <input
                         type="text"
                         className="input w-full"
                         value={newPayerName}
                         onChange={(e) => setNewPayerName(e.target.value)}
-                        placeholder="Payer Name (e.g., Aetna Inc.)"
+                        placeholder="Payer Name (e.g., UnitedHealthcare, Aetna Inc.)"
                         required
                       />
                       <button

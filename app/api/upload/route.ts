@@ -62,6 +62,14 @@ async function handleFormularyUpload(csvText: string, fileName: string, datasetL
         message: `Insurance plan with ID ${planId} not found`,
       }, { status: 400 });
     }
+
+    // Update formularyVersion with datasetLabel if provided
+    if (datasetLabel) {
+      plan = await prisma.insurancePlan.update({
+        where: { id: plan.id },
+        data: { formularyVersion: datasetLabel },
+      });
+    }
   } else {
     // Get or create default plan
     plan = await prisma.insurancePlan.findFirst();
@@ -70,7 +78,7 @@ async function handleFormularyUpload(csvText: string, fileName: string, datasetL
         data: {
           planName: 'Default Plan',
           payerName: 'Default Payer',
-          formularyVersion: new Date().toISOString().split('T')[0],
+          formularyVersion: datasetLabel || new Date().toISOString().split('T')[0],
         },
       });
     }
