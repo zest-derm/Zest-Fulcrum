@@ -6,6 +6,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { ChevronRight } from 'lucide-react';
 import BiologicInput from '@/components/BiologicInput';
+import BiologicSearchDropdown from '@/components/BiologicSearchDropdown';
 
 interface Patient {
   id: string;
@@ -508,39 +509,20 @@ export default function AssessmentPage() {
 
         {/* Inappropriate Biologics */}
         <div>
-          <label className="label">Are there any biologics that are inappropriate for this patient? (optional)</label>
-          <p className="text-xs text-gray-500 mb-2">
+          <p className="text-xs text-gray-500 mb-3">
             Select biologics that should be excluded from recommendations (e.g., previous failures, allergies, contraindications).
           </p>
-          <select
-            className="input w-full"
-            onChange={(e) => {
-              const drugName = e.target.value;
-              if (drugName && !formData.failedTherapies.includes(drugName)) {
-                setFormData(prev => ({
-                  ...prev,
-                  failedTherapies: [...prev.failedTherapies, drugName],
-                }));
-                e.target.value = ''; // Reset dropdown
-              }
+          <BiologicSearchDropdown
+            selectedBiologics={formData.failedTherapies}
+            onAdd={(drugName) => {
+              setFormData(prev => ({
+                ...prev,
+                failedTherapies: [...prev.failedTherapies, drugName],
+              }));
             }}
-            defaultValue=""
-          >
-            <option value="">Select a biologic to exclude</option>
-            <option value="Humira (adalimumab)">Humira (adalimumab)</option>
-            <option value="Enbrel (etanercept)">Enbrel (etanercept)</option>
-            <option value="Stelara (ustekinumab)">Stelara (ustekinumab)</option>
-            <option value="Cosentyx (secukinumab)">Cosentyx (secukinumab)</option>
-            <option value="Taltz (ixekizumab)">Taltz (ixekizumab)</option>
-            <option value="Skyrizi (risankizumab)">Skyrizi (risankizumab)</option>
-            <option value="Tremfya (guselkumab)">Tremfya (guselkumab)</option>
-            <option value="Otezla (apremilast)">Otezla (apremilast)</option>
-            <option value="Dupixent (dupilumab)">Dupixent (dupilumab)</option>
-            <option value="Rinvoq (upadacitinib)">Rinvoq (upadacitinib)</option>
-            <option value="Cimzia (certolizumab)">Cimzia (certolizumab)</option>
-            <option value="Ilumya (tildrakizumab)">Ilumya (tildrakizumab)</option>
-            <option value="Siliq (brodalumab)">Siliq (brodalumab)</option>
-          </select>
+            placeholder="Type to search biologics to exclude..."
+            label="Are there any biologics that are inappropriate for this patient? (optional)"
+          />
           {formData.failedTherapies.length > 0 && (
             <div className="mt-3 flex flex-wrap gap-2">
               {formData.failedTherapies.map((therapy) => (
