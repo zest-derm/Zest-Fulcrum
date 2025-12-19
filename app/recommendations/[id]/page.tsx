@@ -288,7 +288,7 @@ export default async function RecommendationsPage({ params }: PageProps) {
       frequency: assessment.currentBiologicFrequency,
     } : null);
 
-  const quadrantLabel = assessment.recommendations[0]?.quadrant.replace(/_/g, ' ').toUpperCase();
+  const quadrantLabel = assessment.recommendations[0]?.quadrant?.replace(/_/g, ' ').toUpperCase() || 'N/A';
 
   // Find current drug's tier from formulary
   const currentDrugTier = currentBiologic
@@ -318,7 +318,7 @@ export default async function RecommendationsPage({ params }: PageProps) {
             {currentBiologic && currentDrugTier && (
               <> • Tier {currentDrugTier}</>
             )}
-            {currentBiologic && assessment.recommendations[0] && (
+            {currentBiologic && assessment.recommendations[0] && assessment.recommendations[0].isFormularyOptimal !== null && (
               <> • <span className={assessment.recommendations[0].isFormularyOptimal ? 'text-green-700 font-medium' : 'text-amber-700 font-medium'}>
                 {assessment.recommendations[0].isFormularyOptimal ? 'Optimal' : 'Suboptimal'}
               </span></>
@@ -327,46 +327,54 @@ export default async function RecommendationsPage({ params }: PageProps) {
         </div>
       </div>
 
-      {/* Quadrant Status */}
-      <div className="card mb-6">
-        <div className="flex items-start justify-between">
-          <div>
-            <h3 className="mb-2">Classification</h3>
-            <div className="flex items-center gap-2 mb-2">
-              <span className="px-3 py-1 rounded-full bg-primary-100 text-primary-800 font-medium text-sm">
-                {quadrantLabel}
-              </span>
+      {/* Assessment Info */}
+      {quadrantLabel !== 'N/A' && (
+        <div className="card mb-6">
+          <div className="flex items-start justify-between">
+            <div>
+              <h3 className="mb-2">Classification (Legacy)</h3>
+              <div className="flex items-center gap-2 mb-2">
+                <span className="px-3 py-1 rounded-full bg-primary-100 text-primary-800 font-medium text-sm">
+                  {quadrantLabel}
+                </span>
+              </div>
+              <div className="text-sm text-gray-600 space-y-1">
+                <p>
+                  <strong>Stability:</strong>{' '}
+                  {assessment.recommendations.length > 0 && assessment.recommendations[0]?.isStable !== null ? (
+                    assessment.recommendations[0]?.isStable ? (
+                      <span className="text-green-700">Stable</span>
+                    ) : (
+                      <span className="text-amber-700">Unstable</span>
+                    )
+                  ) : (
+                    <span className="text-gray-500">N/A</span>
+                  )}{' '}
+                  (DLQI: {assessment.dlqiScore})
+                </p>
+                <p>
+                  <strong>Formulary Status:</strong>{' '}
+                  {assessment.recommendations[0]?.isFormularyOptimal !== null ? (
+                    assessment.recommendations[0]?.isFormularyOptimal ? (
+                      <span className="text-green-700">Optimal</span>
+                    ) : (
+                      <span className="text-amber-700">Suboptimal</span>
+                    )
+                  ) : (
+                    <span className="text-gray-500">N/A</span>
+                  )}
+                </p>
+              </div>
             </div>
-            <div className="text-sm text-gray-600 space-y-1">
-              <p>
-                <strong>Stability:</strong>{' '}
-                {assessment.recommendations.length > 0 && assessment.recommendations[0]?.isStable ? (
-                  <span className="text-green-700">Stable</span>
-                ) : assessment.recommendations.length > 0 ? (
-                  <span className="text-amber-700">Unstable</span>
-                ) : (
-                  <span className="text-gray-500">Unknown</span>
-                )}{' '}
-                (DLQI: {assessment.dlqiScore}, {assessment.monthsStable} months)
-              </p>
-              <p>
-                <strong>Formulary Status:</strong>{' '}
-                {assessment.recommendations[0]?.isFormularyOptimal ? (
-                  <span className="text-green-700">Optimal</span>
-                ) : (
-                  <span className="text-amber-700">Suboptimal</span>
-                )}
+            <div className="text-right">
+              <p className="text-xs text-gray-500 mb-1">Assessed on</p>
+              <p className="text-sm font-medium">
+                {new Date(assessment.assessedAt).toLocaleDateString()}
               </p>
             </div>
-          </div>
-          <div className="text-right">
-            <p className="text-xs text-gray-500 mb-1">Assessed on</p>
-            <p className="text-sm font-medium">
-              {new Date(assessment.assessedAt).toLocaleDateString()}
-            </p>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Recommendations */}
       <div className="space-y-6">
