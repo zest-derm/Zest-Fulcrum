@@ -119,6 +119,7 @@ function getDoseReductionLevel(drugName: string, currentFrequency: string): 0 | 
 export interface AssessmentInput {
   patientId?: string | null;
   planId: string;  // Required for PHI-free assessments
+  medicationType?: string;  // 'biologic' or 'topical' - filters recommendations
   currentBiologic?: {
     drugName: string;
     dose: string;
@@ -130,8 +131,7 @@ export interface AssessmentInput {
   failedTherapies?: string[];
   isStable?: boolean;
   dlqiScore: number;
-  monthsStable: number;
-  additionalNotes?: string;
+  bmi?: string | null;  // '<25', '25-30', '>30' - for future logic
 }
 
 interface TriageResult {
@@ -154,12 +154,9 @@ interface LLMRecommendation {
 }
 
 /**
- * Check if patient is in remission but for insufficient duration
- * These patients should continue current therapy, not optimize yet
+ * Patients in remission are assumed to have been stable for >= 3 months
+ * This is the minimum duration required before considering optimization
  */
-function isStableShortDuration(isStable: boolean, monthsStable: number): boolean {
-  return isStable && monthsStable < 3;
-}
 
 /**
  * Convert string requiresPA value to boolean
@@ -183,10 +180,10 @@ function stripMarkdownCodeBlock(text: string): string {
 
 /**
  * Determine formulary status and quadrant using hard-coded rules
+ * Note: Patients in remission are assumed to have been stable >= 3 months
  */
 function determineQuadrantAndStatus(
   isStableInput: boolean,
-  monthsStable: number,
   currentFormularyDrug: FormularyDrug | null,
   hasCurrentBiologic: boolean
 ): { isStable: boolean; isFormularyOptimal: boolean; quadrant: string } {
@@ -199,20 +196,9 @@ function determineQuadrantAndStatus(
     };
   }
 
-  // Check for remission but insufficient duration - special case
-  if (isStableShortDuration(isStableInput, monthsStable)) {
-    const isFormularyOptimal = currentFormularyDrug
-      ? currentFormularyDrug.tier === 1
-      : false;
-    return {
-      isStable: true, // Patient IS in remission, just not for long enough
-      isFormularyOptimal,
-      quadrant: 'stable_short_duration'
-    };
-  }
-
-  // Remission: Based on clinician judgment and ≥3 months in remission
-  const isStable = isStableInput && monthsStable >= 3;
+  // Remission: Based on clinician judgment
+  // Assumed to be stable >= 3 months (minimum duration for optimization)
+  const isStable = isStableInput;
 
   // Formulary optimal: Tier 1 (regardless of PA requirement for CURRENT therapy)
   // Rationale: If patient is already on a Tier 1 drug with PA, they've cleared that hurdle.
@@ -256,10 +242,8 @@ Patient Information:
 - Diagnosis: ${assessment.diagnosis}
 - Current medication: ${currentDrug || 'None (not on biologic)'}
 - Current dose status: ${currentDoseReduction === 0 ? 'Standard dosing' : `${currentDoseReduction}% dose-reduced`}
-- Disease control: ${assessment.isStable ? 'In remission' : 'Active disease'}
-- Months in current remission: ${assessment.monthsStable}
+- Disease control: ${assessment.isStable ? 'In remission (assumed >= 3 months)' : 'Active disease'}
 - Has psoriatic arthritis: ${assessment.hasPsoriaticArthritis ? 'Yes' : 'No'}
-- Additional notes: ${assessment.additionalNotes || 'None'}
 
 Formulary Tier Structure (RELATIVE TIER LOGIC):
 - Available tiers in formulary: [${availableTiers.join(', ')}]
@@ -761,10 +745,8 @@ PATIENT INFORMATION
 - Current medication: ${currentBrandName || 'None (not on biologic)'}${currentDrug && currentDrug !== currentBrandName ? ` (generic: ${currentDrug})` : ''}
 - Current dosing: ${currentDosingInfo}
 - Diagnosis: ${assessment.diagnosis}
-- Disease control: ${assessment.isStable ? 'In remission' : 'Active disease'}
-- Months in current remission: ${assessment.monthsStable}
+- Disease control: ${assessment.isStable ? 'In remission (assumed >= 3 months)' : 'Active disease'}
 - Psoriatic arthritis: ${assessment.hasPsoriaticArthritis ? 'YES - prefer drugs with PsA indication' : 'NO'}
-- Additional notes: ${assessment.additionalNotes || 'None'}
 - Quadrant: ${triage.quadrant}
 - Triage reasoning: ${triage.reasoning}
 - Contraindications: ${contraindicationText}
@@ -829,10 +811,7 @@ For patients with ACTIVE DISEASE on STANDARD dose:
 2. Prioritize mechanism switching (TNF → IL-17/IL-23 for better efficacy)
 3. **Never dose reduce**
 
-For patients in remission <3 months:
-1. **CONTINUE_CURRENT** - too early to optimize (need ${3 - assessment.monthsStable} more months)
-2. Can consider tier switches for cost savings, but NO dose reduction yet
-3. Mention dose reduction as future option once 3 months of remission achieved
+NOTE: Patients in remission are assumed to have been stable >= 3 months (minimum duration for optimization)
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 DOSE REDUCTION STEPPING RULES
@@ -867,13 +846,11 @@ When multiple drugs exist in same tier, rank by clinical efficacy:
 4. IL-4/13 inhibitors (Dupilumab) - moderate efficacy, excellent for AD
 5. Oral agents (Apremilast, Deucravacitinib) - moderate efficacy
 
-**Comorbidity Considerations (parse additionalNotes):**
+**Comorbidity Considerations:**
 - Asthma + Atopic Dermatitis → Dupilumab strongly preferred (multi-indication benefit)
 - Psoriatic arthritis → IL-17 or TNF inhibitors preferred over IL-23
 - Inflammatory bowel disease → AVOID IL-17 inhibitors, prefer TNF or IL-23
 - Cardiovascular disease → Consider IL-23 (no heart failure concerns vs TNF)
-
-⚠️ Parse the "Additional notes" field above for comorbidities and adjust ranking accordingly.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 CONTRAINDICATION RULES (PRE-FILTERED)
@@ -1250,7 +1227,6 @@ export async function generateLLMRecommendations(
   // Step 1: Determine quadrant using hard-coded rules (don't trust LLM for this)
   const { isStable, isFormularyOptimal, quadrant} = determineQuadrantAndStatus(
     assessment.isStable ?? (assessment.dlqiScore <= 4), // Use isStable if provided, fallback to DLQI
-    assessment.monthsStable,
     currentFormularyDrug || null,
     hasCurrentBiologic
   );
@@ -1264,7 +1240,7 @@ export async function generateLLMRecommendations(
     requiresPA: currentFormularyDrug.requiresPA
   } : 'NULL - NOT FOUND IN FORMULARY');
   console.log(`Quadrant: ${quadrant}`);
-  console.log(`isStable: ${isStable} (Clinician input: ${assessment.isStable}, months: ${assessment.monthsStable})`);
+  console.log(`isStable: ${isStable} (Clinician input: ${assessment.isStable}, assumed >= 3 months)`);
   console.log(`isFormularyOptimal: ${isFormularyOptimal} (Tier ${currentFormularyDrug?.tier}, PA: ${currentFormularyDrug?.requiresPA})`);
   console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
 

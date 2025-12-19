@@ -7,31 +7,30 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const {
-      mrn,
       providerId,
       patientId,
       planId,
+      medicationType,
       currentBiologic,
       diagnosis,
       hasPsoriaticArthritis,
       contraindications,
       isStable,
-      monthsStable,
-      additionalNotes,
+      bmi,
       failedTherapies,
     } = body;
 
     // Validate required fields
-    if (!mrn) {
+    if (!providerId) {
       return NextResponse.json(
-        { error: 'MRN is required' },
+        { error: 'Provider is required' },
         { status: 400 }
       );
     }
 
     if (!planId) {
       return NextResponse.json(
-        { error: 'Insurance plan is required' },
+        { error: 'Partner is required' },
         { status: 400 }
       );
     }
@@ -43,15 +42,14 @@ export async function POST(request: NextRequest) {
     // Create assessment
     const assessment = await prisma.assessment.create({
       data: {
-        mrn: mrn,
-        providerId: providerId || null,
+        providerId: providerId,
         patientId: patientId || null,
         planId: planId,
+        medicationType: medicationType || 'biologic',
         diagnosis,
         hasPsoriaticArthritis: hasPsoriaticArthritis || false,
         dlqiScore: dlqiScore,
-        monthsStable: Number(monthsStable),
-        additionalNotes,
+        bmi: bmi || null,
         // Store current biologic info for PHI-free assessments
         currentBiologicName: currentBiologic?.drugName || null,
         currentBiologicDose: currentBiologic?.dose || null,
@@ -66,6 +64,7 @@ export async function POST(request: NextRequest) {
     const assessmentInput = {
       patientId: patientId || assessment.id, // Use assessment ID if no patient
       planId,
+      medicationType: medicationType || 'biologic',
       currentBiologic,
       diagnosis,
       hasPsoriaticArthritis: hasPsoriaticArthritis || false,
@@ -73,8 +72,7 @@ export async function POST(request: NextRequest) {
       failedTherapies: failedTherapies || [],
       isStable,
       dlqiScore: dlqiScore,
-      monthsStable: Number(monthsStable),
-      additionalNotes,
+      bmi: bmi || null,
     };
 
     if (useLLM) {

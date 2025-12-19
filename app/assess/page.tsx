@@ -791,10 +791,15 @@ export default function AssessmentPage() {
             <div className="space-y-4 text-sm text-gray-700">
               <div>
                 <h4 className="font-semibold text-gray-900 mb-2">Clinical Definition of Remission</h4>
-                <p>
+                <p className="mb-2">
                   A patient is considered <strong>in remission</strong> when their psoriasis is well-controlled on current therapy,
                   with minimal disease activity and impact on quality of life. Consider the patient in remission if they meet most of the following criteria:
                 </p>
+                <div className="bg-blue-100 border-l-4 border-blue-500 p-3 mt-3">
+                  <p className="text-sm text-blue-900">
+                    <strong>Note:</strong> For optimization purposes, patients should have been in remission for <strong>at least 3 months</strong> before considering dose reduction or therapeutic changes.
+                  </p>
+                </div>
               </div>
 
               <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
