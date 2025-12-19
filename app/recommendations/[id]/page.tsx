@@ -528,10 +528,18 @@ export default async function RecommendationsPage({ params }: PageProps) {
             assessmentId={assessment.id}
             mrn={assessment.mrn}
             providerId={assessment.providerId}
+            assessmentStartedAt={assessment.assessmentStartedAt}
+            assessedAt={assessment.assessedAt}
+            currentBiologic={{
+              name: assessment.currentBiologicName || assessment.patient?.currentBiologics[0]?.drugName,
+              dose: assessment.currentBiologicDose || assessment.patient?.currentBiologics[0]?.dose,
+              frequency: assessment.currentBiologicFrequency || assessment.patient?.currentBiologics[0]?.frequency,
+            }}
             recommendations={assessment.recommendations.map(r => ({
               id: r.id,
               rank: r.rank,
               drugName: r.drugName,
+              tier: r.tier,
             }))}
           />
         </div>

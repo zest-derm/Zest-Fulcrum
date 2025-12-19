@@ -312,6 +312,7 @@ model Assessment {
   currentBiologicName    String?        // Current biologic drug name (for PHI-free assessments)
   currentBiologicDose    String?        // Current biologic dose
   currentBiologicFrequency String?      // Current biologic frequency
+  assessmentStartedAt    DateTime?      // When provider started the assessment form
   assessedAt             DateTime       @default(now())
 
   patient          Patient?           @relation(fields: [patientId], references: [id], onDelete: Cascade)
@@ -387,22 +388,33 @@ model Recommendation {
 // ============================================
 
 model ProviderFeedback {
-  id                   String   @id @default(cuid())
-  assessmentId         String
-  recommendationId     String?  // Which recommendation was accepted (null if declined all)
-  mrn                  String   // Copy from assessment for easier querying
-  providerId           String?  // Which provider made the decision
+  id                      String   @id @default(cuid())
+  assessmentId            String
+  recommendationId        String?  // Which recommendation was accepted (null if declined all)
+  mrn                     String   // Copy from assessment for easier querying
+  providerId              String?  // Which provider made the decision
 
   // Which option: 1, 2, 3, or null if declined all
-  selectedRank         Int?
+  selectedRank            Int?
+
+  // NEW: Formulary tier selected (from accepted recommendation or manual entry)
+  selectedTier            Int?
+
+  // NEW: Assessment time tracking (minutes)
+  assessmentTimeMinutes   Decimal? @db.Decimal(5, 2)
+
+  // NEW: Validation questions
+  formularyAccurate       Boolean?  // Was formulary/literature accurate?
+  additionalFeedback      String?   @db.Text  // Open-ended feedback
+  yearlyRecommendationCost Decimal? @db.Decimal(12, 2)  // Yearly cost of selected recommendation
 
   // Free text feedback (all optional)
-  reasonForChoice      String?  @db.Text  // Why this option was chosen
-  reasonAgainstFirst   String?  @db.Text  // Why first wasn't chosen (for rank 2/3)
-  reasonForDeclineAll  String?  @db.Text  // Why all declined
-  alternativePlan      String?  @db.Text  // What provider plans instead
+  reasonForChoice         String?  @db.Text  // Why this option was chosen
+  reasonAgainstFirst      String?  @db.Text  // Why first wasn't chosen (for rank 2/3)
+  reasonForDeclineAll     String?  @db.Text  // Why all declined
+  alternativePlan         String?  @db.Text  // What provider plans instead
 
-  createdAt            DateTime @default(now())
+  createdAt               DateTime @default(now())
 
   assessment     Assessment      @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
   recommendation Recommendation? @relation(fields: [recommendationId], references: [id])

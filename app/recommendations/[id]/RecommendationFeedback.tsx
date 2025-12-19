@@ -1,19 +1,27 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Check, X } from 'lucide-react';
+import { Check, X, Clock } from 'lucide-react';
 
 interface Recommendation {
   id: string;
   rank: number;
   drugName: string;
+  tier?: number | null;
 }
 
 interface RecommendationFeedbackProps {
   assessmentId: string;
-  mrn: string;
+  mrn: string | null;
   providerId: string | null;
+  assessmentStartedAt: Date | null;
+  assessedAt: Date;
+  currentBiologic?: {
+    name?: string | null;
+    dose?: string | null;
+    frequency?: string | null;
+  };
   recommendations: Recommendation[];
 }
 
@@ -21,6 +29,9 @@ export default function RecommendationFeedback({
   assessmentId,
   mrn,
   providerId,
+  assessmentStartedAt,
+  assessedAt,
+  currentBiologic,
   recommendations,
 }: RecommendationFeedbackProps) {
   const router = useRouter();
@@ -29,21 +40,41 @@ export default function RecommendationFeedback({
   const [selectedRecommendationId, setSelectedRecommendationId] = useState<string | null>(null);
   const [isDeclineAll, setIsDeclineAll] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [assessmentTimeMinutes, setAssessmentTimeMinutes] = useState<number | null>(null);
 
   const [feedbackForm, setFeedbackForm] = useState({
+    selectedTier: null as number | null,
+    formularyAccurate: null as boolean | null,
+    additionalFeedback: '',
+    yearlyRecommendationCost: '',
     reasonForChoice: '',
     reasonAgainstFirst: '',
     reasonForDeclineAll: '',
     alternativePlan: '',
   });
 
+  // Calculate assessment time when modal opens
+  useEffect(() => {
+    if (showModal && assessmentStartedAt) {
+      const startTime = new Date(assessmentStartedAt).getTime();
+      const endTime = new Date(assessedAt).getTime();
+      const minutes = (endTime - startTime) / 60000;
+      setAssessmentTimeMinutes(Math.round(minutes * 100) / 100); // Round to 2 decimals
+    }
+  }, [showModal, assessmentStartedAt, assessedAt]);
+
   const handleAccept = (rank: number, recommendationId: string) => {
+    const selectedRec = recommendations.find(r => r.id === recommendationId);
     setSelectedRank(rank);
     setSelectedRecommendationId(recommendationId);
     setIsDeclineAll(false);
     setShowModal(true);
-    // Reset form
+    // Reset form with selected recommendation's tier pre-filled
     setFeedbackForm({
+      selectedTier: selectedRec?.tier || null,
+      formularyAccurate: null,
+      additionalFeedback: '',
+      yearlyRecommendationCost: '',
       reasonForChoice: '',
       reasonAgainstFirst: '',
       reasonForDeclineAll: '',
@@ -58,6 +89,10 @@ export default function RecommendationFeedback({
     setShowModal(true);
     // Reset form
     setFeedbackForm({
+      selectedTier: null,
+      formularyAccurate: null,
+      additionalFeedback: '',
+      yearlyRecommendationCost: '',
       reasonForChoice: '',
       reasonAgainstFirst: '',
       reasonForDeclineAll: '',
@@ -78,6 +113,11 @@ export default function RecommendationFeedback({
           mrn,
           providerId,
           selectedRank,
+          selectedTier: feedbackForm.selectedTier,
+          assessmentTimeMinutes,
+          formularyAccurate: feedbackForm.formularyAccurate,
+          additionalFeedback: feedbackForm.additionalFeedback || null,
+          yearlyRecommendationCost: feedbackForm.yearlyRecommendationCost ? parseFloat(feedbackForm.yearlyRecommendationCost) : null,
           reasonForChoice: feedbackForm.reasonForChoice || null,
           reasonAgainstFirst: feedbackForm.reasonAgainstFirst || null,
           reasonForDeclineAll: feedbackForm.reasonForDeclineAll || null,
@@ -130,12 +170,120 @@ export default function RecommendationFeedback({
       {/* Feedback Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 shadow-xl max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-lg p-6 max-w-3xl w-full mx-4 shadow-xl max-h-[90vh] overflow-y-auto">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">
               {isDeclineAll ? 'Decline All Recommendations' : `Accept Option ${selectedRank}`}
             </h3>
 
+            {/* Display MRN and Current Biologic if available */}
+            <div className="mb-4 p-3 bg-gray-50 rounded-md text-sm">
+              <div className="grid grid-cols-2 gap-2">
+                {mrn && (
+                  <div>
+                    <span className="font-medium">MRN:</span> {mrn}
+                  </div>
+                )}
+                {currentBiologic?.name && (
+                  <div className="col-span-2">
+                    <span className="font-medium">Current Biologic:</span> {currentBiologic.name}
+                    {currentBiologic.dose && `, ${currentBiologic.dose}`}
+                    {currentBiologic.frequency && `, ${currentBiologic.frequency}`}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Assessment Time Display */}
+            {assessmentTimeMinutes !== null && (
+              <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-md flex items-center gap-2">
+                <Clock className="w-5 h-5 text-blue-600" />
+                <div className="text-sm">
+                  <span className="font-medium">Assessment Time:</span> {assessmentTimeMinutes} minutes
+                  {assessmentTimeMinutes < 4 && <span className="ml-2 text-green-600 font-semibold">✓ Under 4 minutes!</span>}
+                </div>
+              </div>
+            )}
+
             <div className="space-y-4">
+              {/* Formulary Tier Selected */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Formulary Tier Selected {!isDeclineAll && '*'}
+                </label>
+                {!isDeclineAll && feedbackForm.selectedTier ? (
+                  <div className="px-3 py-2 bg-gray-100 rounded-md text-gray-700">
+                    Tier {feedbackForm.selectedTier}
+                  </div>
+                ) : (
+                  <select
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    value={feedbackForm.selectedTier || ''}
+                    onChange={(e) => setFeedbackForm({ ...feedbackForm, selectedTier: e.target.value ? parseInt(e.target.value) : null })}
+                  >
+                    <option value="">Select tier</option>
+                    <option value="1">Tier 1</option>
+                    <option value="2">Tier 2</option>
+                    <option value="3">Tier 3</option>
+                    <option value="4">Tier 4</option>
+                    <option value="5">Tier 5 (Not Covered)</option>
+                  </select>
+                )}
+                {isDeclineAll && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    If known, select the tier of the alternative therapy you plan to use
+                  </p>
+                )}
+              </div>
+
+              {/* Was formulary/literature accurate? */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Was the referenced formulary/literature accurate?
+                </label>
+                <div className="flex gap-4">
+                  <label className="flex items-center">
+                    <input
+                      type="radio"
+                      name="formularyAccurate"
+                      checked={feedbackForm.formularyAccurate === true}
+                      onChange={() => setFeedbackForm({ ...feedbackForm, formularyAccurate: true })}
+                      className="mr-2"
+                    />
+                    Yes
+                  </label>
+                  <label className="flex items-center">
+                    <input
+                      type="radio"
+                      name="formularyAccurate"
+                      checked={feedbackForm.formularyAccurate === false}
+                      onChange={() => setFeedbackForm({ ...feedbackForm, formularyAccurate: false })}
+                      className="mr-2"
+                    />
+                    No
+                  </label>
+                </div>
+              </div>
+
+              {/* Yearly Cost */}
+              {!isDeclineAll && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    What is the yearly cost of the recommendation you selected? (optional)
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-2 text-gray-500">$</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      className="w-full pl-7 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      value={feedbackForm.yearlyRecommendationCost}
+                      onChange={(e) => setFeedbackForm({ ...feedbackForm, yearlyRecommendationCost: e.target.value })}
+                      placeholder="0.00"
+                    />
+                  </div>
+                </div>
+              )}
+
               {!isDeclineAll && (
                 <>
                   {/* Why did you choose this option? */}
@@ -201,6 +349,20 @@ export default function RecommendationFeedback({
                   </div>
                 </>
               )}
+
+              {/* Additional Feedback */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Any feedback or questions related to the tool? (optional)
+                </label>
+                <textarea
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  rows={3}
+                  value={feedbackForm.additionalFeedback}
+                  onChange={(e) => setFeedbackForm({ ...feedbackForm, additionalFeedback: e.target.value })}
+                  placeholder="Share any feedback, suggestions, or questions..."
+                />
+              </div>
             </div>
 
             {/* Modal Actions */}

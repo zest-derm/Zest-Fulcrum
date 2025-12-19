@@ -40,6 +40,7 @@ export default function AssessmentPage() {
   const [showHighCostOnly, setShowHighCostOnly] = useState(false); // Filter for high cost patients
   const [selectedPlanName, setSelectedPlanName] = useState<string>('');
   const [selectedFormularyVersion, setSelectedFormularyVersion] = useState<string>('');
+  const [assessmentStartedAt] = useState<Date>(new Date()); // Track when assessment started
 
   const [formData, setFormData] = useState({
     providerId: '',
@@ -323,6 +324,7 @@ export default function AssessmentPage() {
           failedTherapies: formData.failedTherapies,
           isStable: formData.isStable,
           bmi: formData.bmi || null,
+          assessmentStartedAt: assessmentStartedAt.toISOString(),
         }),
       });
 

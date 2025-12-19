@@ -18,6 +18,7 @@ export async function POST(request: NextRequest) {
       isStable,
       bmi,
       failedTherapies,
+      assessmentStartedAt,
     } = body;
 
     // Validate required fields
@@ -54,6 +55,7 @@ export async function POST(request: NextRequest) {
         currentBiologicName: currentBiologic?.drugName || null,
         currentBiologicDose: currentBiologic?.dose || null,
         currentBiologicFrequency: currentBiologic?.frequency || null,
+        assessmentStartedAt: assessmentStartedAt ? new Date(assessmentStartedAt) : null,
       },
     });
 
