@@ -128,6 +128,7 @@ export default function DataRoom() {
   const [filterRemission, setFilterRemission] = useState<string>('all');
   const [sortKey, setSortKey] = useState<SortKey>('assessedAt');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
+  const [expandedRows, setExpandedRows] = useState<string[]>([]);
 
   // Check authentication on mount
   useEffect(() => {
@@ -1109,12 +1110,21 @@ export default function DataRoom() {
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Recommendations
                     </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Option Selected
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Tier
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Time (min)
+                    </th>
                     <th
                       className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                       onClick={() => handleSort('acceptanceRate')}
                     >
                       <div className="flex items-center gap-2">
-                        Accepted
+                        Decision
                         {sortKey === 'acceptanceRate' &&
                           (sortOrder === 'asc' ? (
                             <ChevronUp className="h-4 w-4" />
@@ -1123,55 +1133,166 @@ export default function DataRoom() {
                           ))}
                       </div>
                     </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Details
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {filteredAssessments.map((assessment) => {
+                    const acceptedRec = assessment.recommendations.find(
+                      (r) => r.status === 'ACCEPTED'
+                    );
                     const acceptedCount = assessment.recommendations.filter(
                       (r) => r.status === 'ACCEPTED'
                     ).length;
                     const totalRecs = assessment.recommendations.length;
+                    const feedback = assessment.feedback[0]; // Get most recent feedback
 
                     return (
-                      <tr key={assessment.id} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                          {assessment.mrn}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {assessment.providerName}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {formatDiagnosis(assessment.diagnosis)}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span
-                            className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                              assessment.isRemission
-                                ? 'bg-blue-100 text-blue-800'
-                                : 'bg-yellow-100 text-yellow-800'
-                            }`}
-                          >
-                            {assessment.isRemission ? 'Remission' : 'Active'}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {new Date(assessment.assessedAt).toLocaleDateString()}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {totalRecs}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span
-                            className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                              acceptedCount > 0
-                                ? 'bg-green-100 text-green-800'
-                                : 'bg-red-100 text-red-800'
-                            }`}
-                          >
-                            {acceptedCount} / {totalRecs}
-                          </span>
-                        </td>
-                      </tr>
+                      <>
+                        <tr key={assessment.id} className="hover:bg-gray-50">
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                            {assessment.mrn}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {assessment.providerName}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {formatDiagnosis(assessment.diagnosis)}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span
+                              className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                                assessment.isRemission
+                                  ? 'bg-blue-100 text-blue-800'
+                                  : 'bg-yellow-100 text-yellow-800'
+                              }`}
+                            >
+                              {assessment.isRemission ? 'Remission' : 'Active'}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {new Date(assessment.assessedAt).toLocaleDateString()}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {totalRecs}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {acceptedRec ? (
+                              <span className="font-semibold text-green-700">
+                                Option {acceptedRec.rank}
+                              </span>
+                            ) : feedback ? (
+                              <span className="text-gray-500">None</span>
+                            ) : (
+                              <span className="text-gray-400">Pending</span>
+                            )}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {feedback?.selectedTier ? (
+                              <span className="font-medium">Tier {feedback.selectedTier}</span>
+                            ) : (
+                              <span className="text-gray-400">-</span>
+                            )}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {feedback?.assessmentTimeMinutes ? (
+                              <span className={feedback.assessmentTimeMinutes < 4 ? 'text-green-600 font-semibold' : ''}>
+                                {Number(feedback.assessmentTimeMinutes).toFixed(1)}
+                              </span>
+                            ) : (
+                              <span className="text-gray-400">-</span>
+                            )}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span
+                              className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                                acceptedCount > 0
+                                  ? 'bg-green-100 text-green-800'
+                                  : feedback
+                                  ? 'bg-red-100 text-red-800'
+                                  : 'bg-gray-100 text-gray-800'
+                              }`}
+                            >
+                              {acceptedCount > 0 ? 'Accepted' : feedback ? 'Declined All' : 'Pending'}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm">
+                            {feedback && (
+                              <button
+                                onClick={() => {
+                                  const expanded = expandedRows.includes(assessment.id);
+                                  setExpandedRows(
+                                    expanded
+                                      ? expandedRows.filter((id) => id !== assessment.id)
+                                      : [...expandedRows, assessment.id]
+                                  );
+                                }}
+                                className="text-primary-600 hover:text-primary-800 font-medium"
+                              >
+                                {expandedRows.includes(assessment.id) ? 'Hide' : 'View'}
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                        {/* Expanded Row with Detailed Feedback */}
+                        {expandedRows.includes(assessment.id) && feedback && (
+                          <tr key={`${assessment.id}-details`} className="bg-gray-50">
+                            <td colSpan={11} className="px-6 py-4">
+                              <div className="space-y-3 text-sm">
+                                <h4 className="font-semibold text-gray-900">Provider Feedback Details</h4>
+                                <div className="grid grid-cols-2 gap-4">
+                                  {feedback.formularyAccurate !== null && (
+                                    <div>
+                                      <span className="font-medium text-gray-700">Formulary Accurate:</span>{' '}
+                                      <span className={feedback.formularyAccurate ? 'text-green-600' : 'text-red-600'}>
+                                        {feedback.formularyAccurate ? 'Yes' : 'No'}
+                                      </span>
+                                    </div>
+                                  )}
+                                  {feedback.yearlyRecommendationCost && (
+                                    <div>
+                                      <span className="font-medium text-gray-700">Yearly Cost:</span>{' '}
+                                      ${Number(feedback.yearlyRecommendationCost).toLocaleString()}
+                                    </div>
+                                  )}
+                                </div>
+                                {feedback.reasonForChoice && (
+                                  <div>
+                                    <span className="font-medium text-gray-700">Reason for Choice:</span>
+                                    <p className="mt-1 text-gray-600">{feedback.reasonForChoice}</p>
+                                  </div>
+                                )}
+                                {feedback.reasonAgainstFirst && (
+                                  <div>
+                                    <span className="font-medium text-gray-700">Why Not First Option:</span>
+                                    <p className="mt-1 text-gray-600">{feedback.reasonAgainstFirst}</p>
+                                  </div>
+                                )}
+                                {feedback.reasonForDeclineAll && (
+                                  <div>
+                                    <span className="font-medium text-gray-700">Reason for Declining All:</span>
+                                    <p className="mt-1 text-gray-600">{feedback.reasonForDeclineAll}</p>
+                                  </div>
+                                )}
+                                {feedback.alternativePlan && (
+                                  <div>
+                                    <span className="font-medium text-gray-700">Alternative Plan:</span>
+                                    <p className="mt-1 text-gray-600">{feedback.alternativePlan}</p>
+                                  </div>
+                                )}
+                                {feedback.additionalFeedback && (
+                                  <div>
+                                    <span className="font-medium text-gray-700">Additional Feedback:</span>
+                                    <p className="mt-1 text-gray-600">{feedback.additionalFeedback}</p>
+                                  </div>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </>
                     );
                   })}
                 </tbody>

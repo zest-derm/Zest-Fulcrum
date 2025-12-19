@@ -42,6 +42,40 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Update recommendation status based on provider decision
+    if (recommendationId) {
+      // Provider accepted this specific recommendation
+      await prisma.recommendation.update({
+        where: { id: recommendationId },
+        data: {
+          status: 'ACCEPTED',
+          decidedAt: new Date(),
+        },
+      });
+
+      // Mark all other recommendations for this assessment as REJECTED
+      await prisma.recommendation.updateMany({
+        where: {
+          assessmentId,
+          id: { not: recommendationId },
+        },
+        data: {
+          status: 'REJECTED',
+          decidedAt: new Date(),
+        },
+      });
+    } else {
+      // Provider declined all recommendations
+      await prisma.recommendation.updateMany({
+        where: { assessmentId },
+        data: {
+          status: 'REJECTED',
+          decidedAt: new Date(),
+          rejectionReason: reasonForDeclineAll || 'All recommendations declined',
+        },
+      });
+    }
+
     // Create provider feedback
     const feedback = await prisma.providerFeedback.create({
       data: {
