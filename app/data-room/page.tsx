@@ -54,12 +54,19 @@ interface AssessmentDetail {
   monthsStable: number | null;
   isRemission: boolean;
   assessedAt: string;
+  assessmentStartedAt: string | null;
+  currentBiologic: {
+    name: string | null;
+    dose: string | null;
+    frequency: string | null;
+  } | null;
   patientName: string | null;
   recommendations: Array<{
     id: string;
     rank: number;
     type: string;
     drugName: string;
+    tier: number | null;
     status: string;
     annualSavings: number | null;
     currentAnnualCost: number | null;
@@ -71,6 +78,11 @@ interface AssessmentDetail {
   feedback: Array<{
     id: string;
     selectedRank: number | null;
+    selectedTier: number | null;
+    assessmentTimeMinutes: number | null;
+    formularyAccurate: boolean | null;
+    additionalFeedback: string | null;
+    yearlyRecommendationCost: number | null;
     reasonForChoice: string | null;
     reasonAgainstFirst: string | null;
     reasonForDeclineAll: string | null;
@@ -201,12 +213,30 @@ export default function DataRoom() {
       filename = 'diagnosis-analytics.csv';
     } else if (viewMode === 'individual') {
       csvContent =
-        'MRN,Provider,Diagnosis,Remission Status,Date,Recommendations,Accepted,Declined,Total Savings\n';
+        'MRN,Provider,Diagnosis,Remission Status,Date,Current Biologic,Recommendations,Accepted,Declined,Total Savings,Selected Tier,Assessment Time (min),Formulary Accurate,Yearly Recommendation Cost,Additional Feedback,Reason for Choice,Reason Against First,Reason for Decline All,Alternative Plan\n';
       filteredAssessments.forEach((a) => {
         const totalSavings = a.recommendations
           .filter((r) => r.status === 'ACCEPTED')
           .reduce((sum, r) => sum + (r.annualSavings || 0), 0);
-        csvContent += `"${a.mrn}","${a.providerName}","${formatDiagnosis(a.diagnosis)}","${a.isRemission ? 'Remission' : 'Active'}","${new Date(a.assessedAt).toLocaleDateString()}",${a.recommendations.length},${a.recommendations.filter((r) => r.status === 'ACCEPTED').length},${a.recommendations.filter((r) => r.status === 'REJECTED').length},$${totalSavings.toLocaleString()}\n`;
+
+        // Format current biologic
+        const currentBiologic = a.currentBiologic
+          ? `${a.currentBiologic.name || ''}${a.currentBiologic.dose ? ' ' + a.currentBiologic.dose : ''}${a.currentBiologic.frequency ? ' ' + a.currentBiologic.frequency : ''}`
+          : 'None';
+
+        // Get feedback data (use first feedback entry if exists)
+        const fb = a.feedback[0];
+        const selectedTier = fb?.selectedTier || '';
+        const assessmentTime = fb?.assessmentTimeMinutes || '';
+        const formularyAccurate = fb?.formularyAccurate !== null && fb?.formularyAccurate !== undefined ? (fb.formularyAccurate ? 'Yes' : 'No') : '';
+        const yearlyCost = fb?.yearlyRecommendationCost ? `$${fb.yearlyRecommendationCost}` : '';
+        const additionalFeedback = (fb?.additionalFeedback || '').replace(/"/g, '""'); // Escape quotes
+        const reasonForChoice = (fb?.reasonForChoice || '').replace(/"/g, '""');
+        const reasonAgainstFirst = (fb?.reasonAgainstFirst || '').replace(/"/g, '""');
+        const reasonForDeclineAll = (fb?.reasonForDeclineAll || '').replace(/"/g, '""');
+        const alternativePlan = (fb?.alternativePlan || '').replace(/"/g, '""');
+
+        csvContent += `"${a.mrn}","${a.providerName}","${formatDiagnosis(a.diagnosis)}","${a.isRemission ? 'Remission' : 'Active'}","${new Date(a.assessedAt).toLocaleDateString()}","${currentBiologic}",${a.recommendations.length},${a.recommendations.filter((r) => r.status === 'ACCEPTED').length},${a.recommendations.filter((r) => r.status === 'REJECTED').length},$${totalSavings.toLocaleString()},"${selectedTier}","${assessmentTime}","${formularyAccurate}","${yearlyCost}","${additionalFeedback}","${reasonForChoice}","${reasonAgainstFirst}","${reasonForDeclineAll}","${alternativePlan}"\n`;
       });
       filename = 'individual-assessments.csv';
     }

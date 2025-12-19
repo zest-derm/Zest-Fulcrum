@@ -140,42 +140,67 @@ export async function GET(request: NextRequest) {
     );
 
     // Prepare individual assessment details for search
-    const assessmentDetails = assessments.map(assessment => ({
-      id: assessment.id,
-      mrn: assessment.mrn,
-      providerName: assessment.provider?.name || 'Unknown',
-      providerId: assessment.providerId,
-      diagnosis: assessment.diagnosis,
-      hasPsoriaticArthritis: assessment.hasPsoriaticArthritis,
-      dlqiScore: assessment.dlqiScore,
-      monthsStable: assessment.monthsStable,
-      isRemission: assessment.dlqiScore !== null && assessment.dlqiScore <= 5,
-      assessedAt: assessment.assessedAt,
-      patientName: assessment.patient
-        ? `${assessment.patient.firstName} ${assessment.patient.lastName}`.trim() || null
-        : null,
-      recommendations: assessment.recommendations.map(rec => ({
-        id: rec.id,
-        rank: rec.rank,
-        type: rec.type,
-        drugName: rec.drugName,
-        status: rec.status,
-        annualSavings: rec.annualSavings,
-        currentAnnualCost: rec.currentAnnualCost,
-        recommendedAnnualCost: rec.recommendedAnnualCost,
-        savingsPercent: rec.savingsPercent,
-        contraindicated: rec.contraindicated,
-        decidedAt: rec.decidedAt,
-      })),
-      feedback: assessment.providerFeedback.map(fb => ({
-        id: fb.id,
-        selectedRank: fb.selectedRank,
-        reasonForChoice: fb.reasonForChoice,
-        reasonAgainstFirst: fb.reasonAgainstFirst,
-        reasonForDeclineAll: fb.reasonForDeclineAll,
-        alternativePlan: fb.alternativePlan,
-      })),
-    }));
+    const assessmentDetails = assessments.map(assessment => {
+      // Get current biologic info (from assessment or patient)
+      const currentBiologic = assessment.currentBiologicName
+        ? {
+            name: assessment.currentBiologicName,
+            dose: assessment.currentBiologicDose,
+            frequency: assessment.currentBiologicFrequency,
+          }
+        : assessment.patient?.currentBiologics?.[0]
+        ? {
+            name: assessment.patient.currentBiologics[0].drugName,
+            dose: assessment.patient.currentBiologics[0].dose,
+            frequency: assessment.patient.currentBiologics[0].frequency,
+          }
+        : null;
+
+      return {
+        id: assessment.id,
+        mrn: assessment.mrn,
+        providerName: assessment.provider?.name || 'Unknown',
+        providerId: assessment.providerId,
+        diagnosis: assessment.diagnosis,
+        hasPsoriaticArthritis: assessment.hasPsoriaticArthritis,
+        dlqiScore: assessment.dlqiScore,
+        monthsStable: assessment.monthsStable,
+        isRemission: assessment.dlqiScore !== null && assessment.dlqiScore <= 5,
+        assessedAt: assessment.assessedAt,
+        assessmentStartedAt: assessment.assessmentStartedAt,
+        currentBiologic,
+        patientName: assessment.patient
+          ? `${assessment.patient.firstName} ${assessment.patient.lastName}`.trim() || null
+          : null,
+        recommendations: assessment.recommendations.map(rec => ({
+          id: rec.id,
+          rank: rec.rank,
+          type: rec.type,
+          drugName: rec.drugName,
+          tier: rec.tier,
+          status: rec.status,
+          annualSavings: rec.annualSavings,
+          currentAnnualCost: rec.currentAnnualCost,
+          recommendedAnnualCost: rec.recommendedAnnualCost,
+          savingsPercent: rec.savingsPercent,
+          contraindicated: rec.contraindicated,
+          decidedAt: rec.decidedAt,
+        })),
+        feedback: assessment.providerFeedback.map(fb => ({
+          id: fb.id,
+          selectedRank: fb.selectedRank,
+          selectedTier: fb.selectedTier,
+          assessmentTimeMinutes: fb.assessmentTimeMinutes,
+          formularyAccurate: fb.formularyAccurate,
+          additionalFeedback: fb.additionalFeedback,
+          yearlyRecommendationCost: fb.yearlyRecommendationCost,
+          reasonForChoice: fb.reasonForChoice,
+          reasonAgainstFirst: fb.reasonAgainstFirst,
+          reasonForDeclineAll: fb.reasonForDeclineAll,
+          alternativePlan: fb.alternativePlan,
+        })),
+      };
+    });
 
     return NextResponse.json({
       summary: {
