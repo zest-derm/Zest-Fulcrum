@@ -526,29 +526,111 @@ export default function DataRoom() {
                 </h2>
               </div>
               <div className="p-6">
-                <div className="space-y-4">
+                <div className="space-y-6">
                   {data.byProvider.slice(0, 5).map((provider) => (
                     <div
                       key={provider.name}
-                      className="flex items-center justify-between"
+                      className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow"
                     >
-                      <div className="flex-1">
-                        <p className="font-medium text-gray-900">
-                          {provider.name}
-                        </p>
-                        <p className="text-sm text-gray-600">
-                          {provider.totalAssessments} assessments,{' '}
-                          {provider.totalRecommendations} recommendations
-                        </p>
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="flex-1">
+                          <p className="font-semibold text-gray-900 text-lg">
+                            {provider.name}
+                          </p>
+                          <p className="text-sm text-gray-600">
+                            {provider.totalAssessments} assessments
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-2xl font-bold text-green-600">
+                            {provider.acceptanceRate.toFixed(1)}%
+                          </p>
+                          <p className="text-xs text-gray-500">acceptance rate</p>
+                        </div>
                       </div>
-                      <div className="text-right ml-4">
-                        <p className="text-lg font-semibold text-gray-900">
-                          {provider.acceptanceRate.toFixed(1)}%
-                        </p>
-                        <p className="text-sm text-gray-600">
-                          {provider.acceptedCount} accepted
-                        </p>
+
+                      <div className="grid grid-cols-3 gap-3 mt-3 pt-3 border-t border-gray-100">
+                        <div>
+                          <p className="text-xs text-gray-500 mb-1">Avg Time</p>
+                          <p className={`text-sm font-semibold ${
+                            provider.avgAssessmentTime && provider.avgAssessmentTime < 4
+                              ? 'text-green-600'
+                              : 'text-gray-900'
+                          }`}>
+                            {provider.avgAssessmentTime
+                              ? `${provider.avgAssessmentTime.toFixed(1)} min`
+                              : 'N/A'
+                            }
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-500 mb-1">Most Selected</p>
+                          <p className="text-sm font-semibold text-gray-900">
+                            {provider.mostCommonOption
+                              ? `Option ${provider.mostCommonOption}`
+                              : 'N/A'
+                            }
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-500 mb-1">Accepted</p>
+                          <p className="text-sm font-semibold text-gray-900">
+                            {provider.acceptedCount} / {provider.totalRecommendations}
+                          </p>
+                        </div>
                       </div>
+
+                      {/* Option distribution bar */}
+                      {(provider.optionSelections.option1 > 0 ||
+                        provider.optionSelections.option2 > 0 ||
+                        provider.optionSelections.option3 > 0) && (
+                        <div className="mt-3 pt-3 border-t border-gray-100">
+                          <p className="text-xs text-gray-500 mb-2">Option Distribution</p>
+                          <div className="flex gap-1 h-2">
+                            {provider.optionSelections.option1 > 0 && (
+                              <div
+                                className="bg-green-500 rounded"
+                                style={{
+                                  flex: provider.optionSelections.option1
+                                }}
+                                title={`Option 1: ${provider.optionSelections.option1}`}
+                              />
+                            )}
+                            {provider.optionSelections.option2 > 0 && (
+                              <div
+                                className="bg-blue-500 rounded"
+                                style={{
+                                  flex: provider.optionSelections.option2
+                                }}
+                                title={`Option 2: ${provider.optionSelections.option2}`}
+                              />
+                            )}
+                            {provider.optionSelections.option3 > 0 && (
+                              <div
+                                className="bg-purple-500 rounded"
+                                style={{
+                                  flex: provider.optionSelections.option3
+                                }}
+                                title={`Option 3: ${provider.optionSelections.option3}`}
+                              />
+                            )}
+                          </div>
+                          <div className="flex gap-3 mt-1 text-xs">
+                            <span className="text-gray-600">
+                              <span className="inline-block w-2 h-2 bg-green-500 rounded mr-1"></span>
+                              Opt 1: {provider.optionSelections.option1}
+                            </span>
+                            <span className="text-gray-600">
+                              <span className="inline-block w-2 h-2 bg-blue-500 rounded mr-1"></span>
+                              Opt 2: {provider.optionSelections.option2}
+                            </span>
+                            <span className="text-gray-600">
+                              <span className="inline-block w-2 h-2 bg-purple-500 rounded mr-1"></span>
+                              Opt 3: {provider.optionSelections.option3}
+                            </span>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -1090,15 +1172,12 @@ export default function DataRoom() {
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Diagnosis
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Status
-                    </th>
                     <th
                       className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                       onClick={() => handleSort('assessedAt')}
                     >
                       <div className="flex items-center gap-2">
-                        Date
+                        Assessment Date
                         {sortKey === 'assessedAt' &&
                           (sortOrder === 'asc' ? (
                             <ChevronUp className="h-4 w-4" />
@@ -1106,6 +1185,9 @@ export default function DataRoom() {
                             <ChevronDown className="h-4 w-4" />
                           ))}
                       </div>
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Decision Date
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Recommendations
@@ -1161,19 +1243,15 @@ export default function DataRoom() {
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                             {formatDiagnosis(assessment.diagnosis)}
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <span
-                              className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                                assessment.isRemission
-                                  ? 'bg-blue-100 text-blue-800'
-                                  : 'bg-yellow-100 text-yellow-800'
-                              }`}
-                            >
-                              {assessment.isRemission ? 'Remission' : 'Active'}
-                            </span>
-                          </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                             {new Date(assessment.assessedAt).toLocaleDateString()}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {acceptedRec?.decidedAt || feedback?.createdAt ? (
+                              new Date(acceptedRec?.decidedAt || feedback?.createdAt).toLocaleDateString()
+                            ) : (
+                              <span className="text-gray-400">-</span>
+                            )}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                             {totalRecs}

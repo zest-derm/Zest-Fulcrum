@@ -51,12 +51,23 @@ export async function GET(request: NextRequest) {
           acceptanceRate: 0,
           byDiagnosis: {},
           byRemission: { remission: { accepted: 0, total: 0 }, active: { accepted: 0, total: 0 } },
+          // New detailed stats
+          assessmentTimes: [],
+          avgAssessmentTime: null,
+          optionSelections: { option1: 0, option2: 0, option3: 0 },
+          mostCommonOption: null,
         });
       }
 
       const stats = providerStats.get(providerName);
       stats.totalAssessments++;
       stats.totalRecommendations += assessment.recommendations.length;
+
+      // Track assessment times
+      const feedback = assessment.providerFeedback[0];
+      if (feedback?.assessmentTimeMinutes) {
+        stats.assessmentTimes.push(Number(feedback.assessmentTimeMinutes));
+      }
 
       // Track by remission status
       const isRemission = assessment.dlqiScore !== null && assessment.dlqiScore <= 5;
@@ -66,6 +77,11 @@ export async function GET(request: NextRequest) {
         if (rec.status === 'ACCEPTED') {
           stats.acceptedCount++;
           stats.byRemission[remissionKey].accepted++;
+
+          // Track which option was selected
+          if (rec.rank === 1) stats.optionSelections.option1++;
+          else if (rec.rank === 2) stats.optionSelections.option2++;
+          else if (rec.rank === 3) stats.optionSelections.option3++;
         } else if (rec.status === 'REJECTED') {
           stats.declinedCount++;
         }
@@ -85,6 +101,21 @@ export async function GET(request: NextRequest) {
       // Calculate acceptance rate
       if (stats.totalRecommendations > 0) {
         stats.acceptanceRate = (stats.acceptedCount / stats.totalRecommendations) * 100;
+      }
+
+      // Calculate average assessment time
+      if (stats.assessmentTimes.length > 0) {
+        const sum = stats.assessmentTimes.reduce((a, b) => a + b, 0);
+        stats.avgAssessmentTime = sum / stats.assessmentTimes.length;
+      }
+
+      // Determine most common option
+      const selections = stats.optionSelections;
+      const max = Math.max(selections.option1, selections.option2, selections.option3);
+      if (max > 0) {
+        if (selections.option1 === max) stats.mostCommonOption = 1;
+        else if (selections.option2 === max) stats.mostCommonOption = 2;
+        else if (selections.option3 === max) stats.mostCommonOption = 3;
       }
     });
 
@@ -198,6 +229,7 @@ export async function GET(request: NextRequest) {
           reasonAgainstFirst: fb.reasonAgainstFirst,
           reasonForDeclineAll: fb.reasonForDeclineAll,
           alternativePlan: fb.alternativePlan,
+          createdAt: fb.createdAt,
         })),
       };
     });
