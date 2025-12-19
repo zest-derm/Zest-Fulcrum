@@ -91,36 +91,39 @@ export async function POST(request: NextRequest) {
 
     // Save recommendations
     await Promise.all(
-      result.recommendations.map((rec) =>
-        prisma.recommendation.create({
-          data: {
-            assessmentId: assessment.id,
-            patientId,
-            // Simplified system no longer tracks these fields
-            isStable: null,
-            isFormularyOptimal: null,
-            quadrant: null,
-            rank: rec.rank,
-            type: rec.type,
-            drugName: rec.drugName,
-            newDose: rec.newDose,
-            newFrequency: rec.newFrequency,
-            currentAnnualCost: rec.currentAnnualCost,
-            recommendedAnnualCost: rec.recommendedAnnualCost,
-            annualSavings: rec.annualSavings,
-            savingsPercent: rec.savingsPercent,
-            currentMonthlyOOP: rec.currentMonthlyOOP,
-            recommendedMonthlyOOP: rec.recommendedMonthlyOOP,
-            rationale: rec.rationale,
-            evidenceSources: rec.evidenceSources,
-            monitoringPlan: rec.monitoringPlan,
-            tier: rec.tier,
-            requiresPA: rec.requiresPA,
-            contraindicated: rec.contraindicated,
-            contraindicationReason: rec.contraindicationReason,
-          },
-        })
-      )
+      result.recommendations.map((rec) => {
+        // Filter out undefined values to avoid Prisma validation errors
+        const data: any = {
+          assessmentId: assessment.id,
+          patientId: patientId || null,
+          // Simplified system no longer tracks these fields
+          isStable: null,
+          isFormularyOptimal: null,
+          quadrant: null,
+          rank: rec.rank,
+          type: rec.type,
+          drugName: rec.drugName,
+          rationale: rec.rationale,
+          evidenceSources: rec.evidenceSources || [],
+          contraindicated: rec.contraindicated ?? false,
+        };
+
+        // Only add optional fields if they're defined
+        if (rec.newDose !== undefined) data.newDose = rec.newDose;
+        if (rec.newFrequency !== undefined) data.newFrequency = rec.newFrequency;
+        if (rec.currentAnnualCost !== undefined) data.currentAnnualCost = rec.currentAnnualCost;
+        if (rec.recommendedAnnualCost !== undefined) data.recommendedAnnualCost = rec.recommendedAnnualCost;
+        if (rec.annualSavings !== undefined) data.annualSavings = rec.annualSavings;
+        if (rec.savingsPercent !== undefined) data.savingsPercent = rec.savingsPercent;
+        if (rec.currentMonthlyOOP !== undefined) data.currentMonthlyOOP = rec.currentMonthlyOOP;
+        if (rec.recommendedMonthlyOOP !== undefined) data.recommendedMonthlyOOP = rec.recommendedMonthlyOOP;
+        if (rec.monitoringPlan !== undefined) data.monitoringPlan = rec.monitoringPlan;
+        if (rec.tier !== undefined) data.tier = rec.tier;
+        if (rec.requiresPA !== undefined) data.requiresPA = rec.requiresPA;
+        if (rec.contraindicationReason !== undefined) data.contraindicationReason = rec.contraindicationReason;
+
+        return prisma.recommendation.create({ data });
+      })
     );
 
     return NextResponse.json({
