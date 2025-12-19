@@ -74,14 +74,15 @@ enum ContraindicationSeverity {
 }
 
 enum RecommendationType {
-  DOSE_REDUCTION
-  SWITCH_TO_BIOSIMILAR
-  SWITCH_TO_PREFERRED
-  OPTIMIZE_CURRENT
-  THERAPEUTIC_SWITCH
-  CONTINUE_CURRENT
-  CEASE_BIOLOGIC
-  ADD_TOPICAL
+  INITIATE_BIOLOGIC        // v2.0: All recommendations are initiations (switching or first-time)
+  DOSE_REDUCTION           // Deprecated in v2.0
+  SWITCH_TO_BIOSIMILAR     // Deprecated in v2.0
+  SWITCH_TO_PREFERRED      // Deprecated in v2.0
+  OPTIMIZE_CURRENT         // Deprecated in v2.0
+  THERAPEUTIC_SWITCH       // Deprecated in v2.0
+  CONTINUE_CURRENT         // Deprecated in v2.0
+  CEASE_BIOLOGIC           // Deprecated in v2.0
+  ADD_TOPICAL              // Deprecated in v2.0
 }
 
 enum DecisionStatus {
