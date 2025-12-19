@@ -330,10 +330,10 @@ model Recommendation {
   assessmentId            String
   patientId               String?            // Optional to support PHI-free assessments
 
-  // Quadrant classification
-  isStable                Boolean
-  isFormularyOptimal      Boolean
-  quadrant                String
+  // Quadrant classification (deprecated in v2.0 simplified architecture)
+  isStable                Boolean?
+  isFormularyOptimal      Boolean?
+  quadrant                String?
 
   // Recommendation details
   rank                    Int
