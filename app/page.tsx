@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 
 import Link from "next/link";
-import { ArrowRight, Upload, FileText, TrendingDown, MapPin, BarChart3 } from "lucide-react";
+import { ArrowRight, Upload, FileText, BarChart3 } from "lucide-react";
 
 export default function HomePage() {
   return (
@@ -14,8 +14,8 @@ export default function HomePage() {
               Biologic Decision Support System
             </h1>
             <p className="text-xl text-primary-50 max-w-3xl mx-auto">
-              Reduce biologic costs while maintaining clinical outcomes through intelligent,
-              evidence-based therapy optimization
+              Select the next best biologic from your formulary with intelligent,
+              tier-based recommendations and comorbidity matching
             </p>
           </div>
         </div>
@@ -39,32 +39,10 @@ export default function HomePage() {
           <FileText className="w-12 h-12 text-primary-600 mb-4 transition-transform duration-200 group-hover:scale-110" />
           <h3 className="mb-2">Quick Assessment</h3>
           <p className="text-gray-600 mb-4">
-            Simplified patient assessment form with automatic data population and quadrant classification
+            Simplified patient assessment form with automatic data population and tier-based recommendations
           </p>
           <Link href="/assess" className="text-primary-600 hover:text-primary-700 font-medium flex items-center transition-all duration-150 group">
             Start Assessment <ArrowRight className="w-4 h-4 ml-1 transition-transform duration-150 group-hover:translate-x-1" />
-          </Link>
-        </div>
-
-        <div className="card card-hover transform transition-all duration-200 hover:-translate-y-1">
-          <TrendingDown className="w-12 h-12 text-primary-600 mb-4 transition-transform duration-200 group-hover:scale-110" />
-          <h3 className="mb-2">Cost Savings</h3>
-          <p className="text-gray-600 mb-4">
-            Get 1-3 evidence-based recommendations for dose reduction or formulary-preferred switches
-          </p>
-          <Link href="/patients" className="text-primary-600 hover:text-primary-700 font-medium flex items-center transition-all duration-150 group">
-            View Patients <ArrowRight className="w-4 h-4 ml-1 transition-transform duration-150 group-hover:translate-x-1" />
-          </Link>
-        </div>
-
-        <div className="card card-hover transform transition-all duration-200 hover:-translate-y-1">
-          <MapPin className="w-12 h-12 text-primary-600 mb-4 transition-transform duration-200 group-hover:scale-110" />
-          <h3 className="mb-2">Geographic Analytics</h3>
-          <p className="text-gray-600 mb-4">
-            Analyze program success rates and patient demographics by state and city
-          </p>
-          <Link href="/admin/analytics" className="text-primary-600 hover:text-primary-700 font-medium flex items-center transition-all duration-150 group">
-            View Analytics <ArrowRight className="w-4 h-4 ml-1 transition-transform duration-150 group-hover:translate-x-1" />
           </Link>
         </div>
 
@@ -99,9 +77,9 @@ export default function HomePage() {
               1
             </span>
             <div>
-              <h4 className="font-semibold mb-1">Select Patient & Input Assessment</h4>
+              <h4 className="font-semibold mb-1">Input Patient Assessment</h4>
               <p className="text-gray-600">
-                Choose patient, enter current biologic(s), indication, contraindications, DLQI score, and stability duration
+                Select partner, enter current biologic (if any), diagnosis, comorbidities (PsA, BMI), and inappropriate biologics
               </p>
             </div>
           </li>
@@ -110,9 +88,9 @@ export default function HomePage() {
               2
             </span>
             <div>
-              <h4 className="font-semibold mb-1">Automatic Classification</h4>
+              <h4 className="font-semibold mb-1">Intelligent Filtering & Ranking</h4>
               <p className="text-gray-600">
-                System auto-pulls claims, health plan, formulary tiers, and places patient in stability/formulary matrix
+                System filters formulary by tier, matches comorbidities (PsA, asthma, IBD), and ranks by efficacy
               </p>
             </div>
           </li>
@@ -121,9 +99,9 @@ export default function HomePage() {
               3
             </span>
             <div>
-              <h4 className="font-semibold mb-1">Evidence-Based Recommendations</h4>
+              <h4 className="font-semibold mb-1">Tier-Based Recommendations</h4>
               <p className="text-gray-600">
-                Receive 1-3 cost-saving options with clinical rationale, evidence citations, and detailed cost analysis
+                Receive 3 ranked options prioritizing lowest tier, with clinical rationale and cost analysis
               </p>
             </div>
           </li>
