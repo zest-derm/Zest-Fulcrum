@@ -53,15 +53,16 @@ export default function RecommendationFeedback({
     alternativePlan: '',
   });
 
-  // Calculate assessment time when modal opens
+  // Calculate assessment time when recommendations page loads (not when modal opens)
+  // This captures the full time from New Assessment page load to Recommendations page load
   useEffect(() => {
-    if (showModal && assessmentStartedAt) {
+    if (assessmentStartedAt) {
       const startTime = new Date(assessmentStartedAt).getTime();
-      const endTime = new Date(assessedAt).getTime();
+      const endTime = new Date().getTime(); // Use current time (when page loads)
       const minutes = (endTime - startTime) / 60000;
       setAssessmentTimeMinutes(Math.round(minutes * 100) / 100); // Round to 2 decimals
     }
-  }, [showModal, assessmentStartedAt, assessedAt]);
+  }, [assessmentStartedAt]); // Run once when component mounts
 
   const handleAccept = (rank: number, recommendationId: string) => {
     const selectedRec = recommendations.find(r => r.id === recommendationId);

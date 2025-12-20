@@ -125,7 +125,8 @@ export default function DataRoom() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterProvider, setFilterProvider] = useState<string>('all');
   const [filterDiagnosis, setFilterDiagnosis] = useState<string>('all');
-  const [filterRemission, setFilterRemission] = useState<string>('all');
+  const [startDate, setStartDate] = useState<string>('');
+  const [endDate, setEndDate] = useState<string>('');
   const [sortKey, setSortKey] = useState<SortKey>('assessedAt');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
   const [expandedRows, setExpandedRows] = useState<string[]>([]);
@@ -306,16 +307,17 @@ export default function DataRoom() {
           const matchesDiagnosis =
             filterDiagnosis === 'all' || a.diagnosis === filterDiagnosis;
 
-          const matchesRemission =
-            filterRemission === 'all' ||
-            (filterRemission === 'remission' && a.isRemission) ||
-            (filterRemission === 'active' && !a.isRemission);
+          // Date range filtering
+          const assessmentDate = new Date(a.assessedAt);
+          const matchesStartDate = !startDate || assessmentDate >= new Date(startDate);
+          const matchesEndDate = !endDate || assessmentDate <= new Date(endDate + 'T23:59:59');
 
           return (
             matchesSearch &&
             matchesProvider &&
             matchesDiagnosis &&
-            matchesRemission
+            matchesStartDate &&
+            matchesEndDate
           );
         })
         .sort((a, b) => {
@@ -803,45 +805,6 @@ export default function DataRoom() {
               </table>
             </div>
 
-            {/* Detailed Provider Breakdown */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {filteredProviders.map((provider) => (
-                <div key={provider.name} className="bg-white rounded-lg shadow">
-                  <div className="px-6 py-4 border-b border-gray-200">
-                    <h3 className="text-lg font-semibold text-gray-900">
-                      {provider.name}
-                    </h3>
-                  </div>
-                  <div className="p-6 space-y-4">
-                    <div>
-                      <h4 className="text-sm font-medium text-gray-700 mb-2">
-                        By Diagnosis
-                      </h4>
-                      {Object.entries(provider.byDiagnosis).map(
-                        ([diagnosis, stats]) => (
-                          <div
-                            key={diagnosis}
-                            className="flex items-center justify-between py-2"
-                          >
-                            <span className="text-sm text-gray-600">
-                              {formatDiagnosis(diagnosis)}
-                            </span>
-                            <span className="text-sm font-medium text-gray-900">
-                              {stats.total > 0
-                                ? ((stats.accepted / stats.total) * 100).toFixed(
-                                    1
-                                  )
-                                : 0}
-                              % ({stats.accepted}/{stats.total})
-                            </span>
-                          </div>
-                        )
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
           </div>
         )}
 
@@ -1005,7 +968,7 @@ export default function DataRoom() {
           <div className="space-y-6">
             {/* Filters */}
             <div className="bg-white rounded-lg shadow p-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
                   <input
@@ -1043,15 +1006,25 @@ export default function DataRoom() {
                   ))}
                 </select>
 
-                <select
-                  value={filterRemission}
-                  onChange={(e) => setFilterRemission(e.target.value)}
-                  className="input"
-                >
-                  <option value="all">All Statuses</option>
-                  <option value="remission">In Remission</option>
-                  <option value="active">Disease Active</option>
-                </select>
+                <div>
+                  <input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    className="input"
+                    placeholder="Start Date"
+                  />
+                </div>
+
+                <div>
+                  <input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    className="input"
+                    placeholder="End Date"
+                  />
+                </div>
               </div>
 
               <div className="mt-4 flex items-center justify-between">
