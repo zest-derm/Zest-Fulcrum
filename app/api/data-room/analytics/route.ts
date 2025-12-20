@@ -249,6 +249,11 @@ export async function GET(request: NextRequest) {
         }
       }
 
+      // Get plan information
+      const effectivePlan = assessment.plan || assessment.patient?.plan;
+      const planName = effectivePlan?.planName || null;
+      const formularyVersion = effectivePlan?.formularyVersion || null;
+
       return {
         id: assessment.id,
         mrn: assessment.mrn,
@@ -263,6 +268,8 @@ export async function GET(request: NextRequest) {
         assessmentStartedAt: assessment.assessmentStartedAt,
         currentBiologic,
         currentBiologicTier,
+        planName,
+        formularyVersion,
         patientName: assessment.patient
           ? `${assessment.patient.firstName} ${assessment.patient.lastName}`.trim() || null
           : null,

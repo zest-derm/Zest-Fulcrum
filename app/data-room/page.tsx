@@ -61,6 +61,8 @@ interface AssessmentDetail {
     frequency: string | null;
   } | null;
   currentBiologicTier: number | null;
+  planName: string | null;
+  formularyVersion: string | null;
   patientName: string | null;
   recommendations: Array<{
     id: string;
@@ -1229,6 +1231,17 @@ export default function DataRoom() {
                                     {assessment.currentBiologic.frequency && `, ${assessment.currentBiologic.frequency}`}
                                     {assessment.currentBiologicTier && (
                                       <> • <span className="font-medium">Tier {assessment.currentBiologicTier}</span></>
+                                    )}
+                                  </div>
+                                )}
+
+                                {/* Plan Information */}
+                                {assessment.planName && (
+                                  <div className="pb-3 border-b border-gray-300">
+                                    <span className="font-medium text-gray-700">Partner:</span>{' '}
+                                    {assessment.planName}
+                                    {assessment.formularyVersion && (
+                                      <> • <span className="font-medium">Formulary: {assessment.formularyVersion}</span></>
                                     )}
                                   </div>
                                 )}
