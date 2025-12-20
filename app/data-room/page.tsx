@@ -60,6 +60,7 @@ interface AssessmentDetail {
     dose: string | null;
     frequency: string | null;
   } | null;
+  currentBiologicTier: number | null;
   patientName: string | null;
   recommendations: Array<{
     id: string;
@@ -1218,6 +1219,20 @@ export default function DataRoom() {
                             <td colSpan={11} className="px-6 py-4">
                               <div className="space-y-3 text-sm">
                                 <h4 className="font-semibold text-gray-900">Provider Feedback Details</h4>
+
+                                {/* Current Biologic Information */}
+                                {assessment.currentBiologic && (
+                                  <div className="pb-3 border-b border-gray-300">
+                                    <span className="font-medium text-gray-700">Current Biologic:</span>{' '}
+                                    {assessment.currentBiologic.name}
+                                    {assessment.currentBiologic.dose && `, ${assessment.currentBiologic.dose}`}
+                                    {assessment.currentBiologic.frequency && `, ${assessment.currentBiologic.frequency}`}
+                                    {assessment.currentBiologicTier && (
+                                      <> • <span className="font-medium">Tier {assessment.currentBiologicTier}</span></>
+                                    )}
+                                  </div>
+                                )}
+
                                 <div className="grid grid-cols-2 gap-4">
                                   {feedback.formularyAccurate !== null && (
                                     <div>

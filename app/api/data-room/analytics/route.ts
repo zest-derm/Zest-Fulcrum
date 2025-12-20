@@ -13,7 +13,21 @@ export async function GET(request: NextRequest) {
     const assessments = await prisma.assessment.findMany({
       include: {
         provider: true,
-        patient: true,
+        patient: {
+          include: {
+            currentBiologics: true,
+            plan: {
+              include: {
+                formularyDrugs: true,
+              },
+            },
+          },
+        },
+        plan: {
+          include: {
+            formularyDrugs: true,
+          },
+        },
         recommendations: {
           include: {
             providerFeedback: true,
@@ -223,6 +237,18 @@ export async function GET(request: NextRequest) {
           }
         : null;
 
+      // Look up current biologic tier from formulary
+      let currentBiologicTier: number | null = null;
+      if (currentBiologic?.name) {
+        const effectivePlan = assessment.plan || assessment.patient?.plan;
+        if (effectivePlan?.formularyDrugs) {
+          const formularyDrug = effectivePlan.formularyDrugs.find(
+            (drug: any) => drug.drugName.toLowerCase() === currentBiologic.name.toLowerCase()
+          );
+          currentBiologicTier = formularyDrug?.tier || null;
+        }
+      }
+
       return {
         id: assessment.id,
         mrn: assessment.mrn,
@@ -236,6 +262,7 @@ export async function GET(request: NextRequest) {
         assessedAt: assessment.assessedAt,
         assessmentStartedAt: assessment.assessmentStartedAt,
         currentBiologic,
+        currentBiologicTier,
         patientName: assessment.patient
           ? `${assessment.patient.firstName} ${assessment.patient.lastName}`.trim() || null
           : null,
