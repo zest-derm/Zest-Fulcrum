@@ -492,8 +492,8 @@ export default function DataRoom() {
                       {data.summary.overallAcceptanceRate.toFixed(1)}%
                     </p>
                     <p className="text-xs text-gray-500 mt-1">
-                      {data.summary.acceptedCount} of{' '}
-                      {data.summary.totalRecommendations} recommendations
+                      {data.summary.assessmentsWithAcceptance} of{' '}
+                      {data.summary.assessmentsWithFeedback} completed assessments
                     </p>
                   </div>
                   <TrendingUp className="h-12 w-12 text-green-600" />
@@ -575,7 +575,7 @@ export default function DataRoom() {
                         <div>
                           <p className="text-xs text-gray-500 mb-1">Accepted</p>
                           <p className="text-sm font-semibold text-gray-900">
-                            {provider.acceptedCount} / {provider.totalRecommendations}
+                            {provider.assessmentsWithAcceptance} / {provider.assessmentsWithFeedback}
                           </p>
                         </div>
                       </div>

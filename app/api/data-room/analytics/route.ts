@@ -45,6 +45,8 @@ export async function GET(request: NextRequest) {
         providerStats.set(providerName, {
           name: providerName,
           totalAssessments: 0,
+          assessmentsWithFeedback: 0,
+          assessmentsWithAcceptance: 0,
           totalRecommendations: 0,
           acceptedCount: 0,
           declinedCount: 0,
@@ -62,6 +64,17 @@ export async function GET(request: NextRequest) {
       const stats = providerStats.get(providerName);
       stats.totalAssessments++;
       stats.totalRecommendations += assessment.recommendations.length;
+
+      // Track if this assessment has feedback and acceptance
+      const hasFeedback = assessment.providerFeedback.length > 0;
+      const hasAcceptance = assessment.recommendations.some(r => r.status === 'ACCEPTED');
+
+      if (hasFeedback) {
+        stats.assessmentsWithFeedback++;
+        if (hasAcceptance) {
+          stats.assessmentsWithAcceptance++;
+        }
+      }
 
       // Track assessment times
       const feedback = assessment.providerFeedback[0];
@@ -98,9 +111,9 @@ export async function GET(request: NextRequest) {
         }
       });
 
-      // Calculate acceptance rate
-      if (stats.totalRecommendations > 0) {
-        stats.acceptanceRate = (stats.acceptedCount / stats.totalRecommendations) * 100;
+      // Calculate acceptance rate: assessments with acceptance / assessments with feedback
+      if (stats.assessmentsWithFeedback > 0) {
+        stats.acceptanceRate = (stats.assessmentsWithAcceptance / stats.assessmentsWithFeedback) * 100;
       }
 
       // Calculate average assessment time
@@ -129,6 +142,8 @@ export async function GET(request: NextRequest) {
         diagnosisStats.set(diagnosis, {
           diagnosis,
           totalAssessments: 0,
+          assessmentsWithFeedback: 0,
+          assessmentsWithAcceptance: 0,
           totalRecommendations: 0,
           acceptedCount: 0,
           declinedCount: 0,
@@ -140,6 +155,17 @@ export async function GET(request: NextRequest) {
       const stats = diagnosisStats.get(diagnosis);
       stats.totalAssessments++;
       stats.totalRecommendations += assessment.recommendations.length;
+
+      // Track if this assessment has feedback and acceptance
+      const hasFeedback = assessment.providerFeedback.length > 0;
+      const hasAcceptance = assessment.recommendations.some(r => r.status === 'ACCEPTED');
+
+      if (hasFeedback) {
+        stats.assessmentsWithFeedback++;
+        if (hasAcceptance) {
+          stats.assessmentsWithAcceptance++;
+        }
+      }
 
       const isRemission = assessment.dlqiScore !== null && assessment.dlqiScore <= 5;
       const remissionKey = isRemission ? 'remission' : 'active';
@@ -154,14 +180,20 @@ export async function GET(request: NextRequest) {
         stats.byRemission[remissionKey].total++;
       });
 
-      if (stats.totalRecommendations > 0) {
-        stats.acceptanceRate = (stats.acceptedCount / stats.totalRecommendations) * 100;
+      // Calculate acceptance rate: assessments with acceptance / assessments with feedback
+      if (stats.assessmentsWithFeedback > 0) {
+        stats.acceptanceRate = (stats.assessmentsWithAcceptance / stats.assessmentsWithFeedback) * 100;
       }
     });
 
-    // Calculate overall acceptance rate
-    const overallAcceptanceRate = totalRecommendations > 0
-      ? (acceptedRecommendations.length / totalRecommendations) * 100
+    // Calculate overall acceptance rate: assessments with at least one acceptance / total assessments with feedback
+    const assessmentsWithFeedback = assessments.filter(a => a.providerFeedback.length > 0);
+    const assessmentsWithAcceptance = assessments.filter(a =>
+      a.recommendations.some(r => r.status === 'ACCEPTED')
+    );
+
+    const overallAcceptanceRate = assessmentsWithFeedback.length > 0
+      ? (assessmentsWithAcceptance.length / assessmentsWithFeedback.length) * 100
       : 0;
 
     // Calculate total savings
@@ -238,6 +270,8 @@ export async function GET(request: NextRequest) {
       summary: {
         totalAssessments,
         totalRecommendations,
+        assessmentsWithFeedback: assessmentsWithFeedback.length,
+        assessmentsWithAcceptance: assessmentsWithAcceptance.length,
         acceptedCount: acceptedRecommendations.length,
         declinedCount: declinedRecommendations.length,
         overallAcceptanceRate,
