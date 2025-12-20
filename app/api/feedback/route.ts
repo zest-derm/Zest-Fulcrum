@@ -43,9 +43,17 @@ export async function POST(request: NextRequest) {
     }
 
     // Update recommendation status based on provider decision
+    console.log('[FEEDBACK] Processing decision:', {
+      assessmentId,
+      recommendationId,
+      hasRecommendationId: !!recommendationId,
+    });
+
     if (recommendationId) {
       // Provider accepted this specific recommendation
-      await prisma.recommendation.update({
+      console.log('[FEEDBACK] Marking recommendation as ACCEPTED:', recommendationId);
+
+      const updatedRec = await prisma.recommendation.update({
         where: { id: recommendationId },
         data: {
           status: 'ACCEPTED',
@@ -53,8 +61,10 @@ export async function POST(request: NextRequest) {
         },
       });
 
+      console.log('[FEEDBACK] Successfully updated recommendation:', updatedRec.id, updatedRec.status);
+
       // Mark all other recommendations for this assessment as REJECTED
-      await prisma.recommendation.updateMany({
+      const rejectedCount = await prisma.recommendation.updateMany({
         where: {
           assessmentId,
           id: { not: recommendationId },
@@ -64,9 +74,13 @@ export async function POST(request: NextRequest) {
           decidedAt: new Date(),
         },
       });
+
+      console.log('[FEEDBACK] Marked other recommendations as REJECTED:', rejectedCount.count);
     } else {
       // Provider declined all recommendations
-      await prisma.recommendation.updateMany({
+      console.log('[FEEDBACK] Marking all recommendations as REJECTED for assessment:', assessmentId);
+
+      const rejectedCount = await prisma.recommendation.updateMany({
         where: { assessmentId },
         data: {
           status: 'REJECTED',
@@ -74,6 +88,8 @@ export async function POST(request: NextRequest) {
           rejectionReason: reasonForDeclineAll || 'All recommendations declined',
         },
       });
+
+      console.log('[FEEDBACK] Marked all as REJECTED:', rejectedCount.count);
     }
 
     // Create provider feedback
