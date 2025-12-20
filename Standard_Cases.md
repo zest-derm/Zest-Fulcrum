@@ -20,14 +20,14 @@ This document contains 25 standardized patient scenarios designed to test variou
 | 8 | Aetna | 10008 | Neil Jairath | Biologic | None (not on biologic) | - | - | Psoriasis | No | Active infection | None | <25 | Starting therapy, has infection |
 | 9 | Aetna | 10009 | Neil Jairath | Biologic | Otezla | 30mg | Twice daily | Psoriasis | Yes | Heart failure, Multiple sclerosis | None | >30 | Multiple contraindications, on oral |
 | 10 | Aetna | 10010 | Neil Jairath | Biologic | Dupixent | 300mg | Every 2 weeks | Atopic Dermatitis | No | None | None | 25-30 | Atopic dermatitis case |
-| 11 | Aetna | 10011 | Neil Jairath | Biologic | Rinvoq | 15mg | Once daily | Atopic Dermatitis | No | Drug allergies | Dupixent | <25 | JAK inhibitor, previous biologic failure |
+| 11 | Aetna | 10011 | Neil Jairath | Biologic | Rinvoq | 15mg | Once daily | Atopic Dermatitis | No | Lymphoma | Dupixent | <25 | JAK inhibitor, previous biologic failure |
 | 12 | Aetna | 10012 | Neil Jairath | Biologic | None (not on biologic) | - | - | Atopic Dermatitis | No | Pregnancy/planning pregnancy | None | 25-30 | Pregnancy contraindication |
 | 13 | United | 20001 | Neil Jairath | Biologic | Humira | 40mg | Every 2 weeks | Psoriasis | No | None | None | <25 | Baseline case - different formulary |
 | 14 | United | 20002 | Neil Jairath | Biologic | Cimzia | 200mg | Every 2 weeks | Psoriasis | Yes | None | Humira | >30 | PsA, TNF switch |
 | 15 | United | 20003 | Neil Jairath | Biologic | Stelara | 90mg | Every 12 weeks | Psoriasis | No | None | None | >30 | High dose for weight >100kg |
 | 16 | United | 20004 | Neil Jairath | Biologic | Skyrizi | 150mg | Every 12 weeks | Psoriasis | Yes | None | Humira, Enbrel, Cosentyx | 25-30 | PsA, multiple failures |
 | 17 | United | 20005 | Neil Jairath | Biologic | Ilumya | 100mg | Every 12 weeks | Psoriasis | No | Inflammatory bowel disease | None | <25 | IBD present |
-| 18 | United | 20006 | Neil Jairath | Biologic | Siliq | 210mg | Once weekly | Psoriasis | No | Drug allergies | Humira, Stelara, Cosentyx | >30 | Multiple failures, high risk drug |
+| 18 | United | 20006 | Neil Jairath | Biologic | Siliq | 210mg | Once weekly | Psoriasis | No | Malignancy | Humira, Stelara, Cosentyx | >30 | Multiple failures, high risk drug |
 | 19 | United | 20007 | Neil Jairath | Biologic | None (not on biologic) | - | - | Psoriasis | Yes | None | None | 25-30 | New PsA patient, no prior therapy |
 | 20 | United | 20008 | Neil Jairath | Biologic | Xeljanz | 5mg | Twice daily | Psoriasis | Yes | None | Humira, Cosentyx | >30 | JAK inhibitor, high BMI |
 | 21 | United | 20009 | Neil Jairath | Biologic | Adbry | 300mg | Every 2 weeks | Atopic Dermatitis | No | None | None | <25 | AD, newer biologic |
@@ -62,7 +62,6 @@ This document contains 25 standardized patient scenarios designed to test variou
 - Inflammatory bowel disease (Cases 6, 17, 25)
 - Active infection (Cases 8, 22)
 - Pregnancy/planning pregnancy (Case 12)
-- Drug allergies (Cases 11, 18)
 
 #### Special Scenarios
 - **Not on biologic**: Cases 8, 12, 19, 25
@@ -70,14 +69,6 @@ This document contains 25 standardized patient scenarios designed to test variou
 - **Multiple failed therapies**: Cases 5, 7, 16, 18
 - **PsA present**: Cases 2, 5, 7, 9, 14, 16, 19, 20
 - **High BMI (>30)**: Cases 3, 6, 9, 15, 18, 20, 23
-- **Weight-based dosing**: Case 15 (Stelara 90mg for >100kg)
-
-#### Edge Cases
-- **IL-17 + IBD**: Case 6 (should be flagged as relative contraindication)
-- **JAK + high BMI**: Case 20 (increased CV risk)
-- **Siliq**: Case 18 (requires additional monitoring, suicidal ideation screening)
-- **Pregnancy**: Case 12 (requires careful drug selection)
-- **Multiple system contraindications**: Cases 9, 25
 
 ## Usage Instructions
 
@@ -98,10 +89,3 @@ This document contains 25 standardized patient scenarios designed to test variou
 - **Weight-based dosing** should be considered where applicable
 - **JAK inhibitors** should include appropriate warnings (VTE, CV risk)
 - **Cost savings** calculations should reflect formulary differences
-
-## Notes
-
-- These cases use "Neil Jairath" as the provider to maintain consistency
-- MRNs follow a pattern: 10001-10012 for Aetna, 20001-20013 for United
-- Cases are designed to test edge cases and various clinical scenarios
-- Each case should be documented with recommendations, provider decisions, and outcomes
