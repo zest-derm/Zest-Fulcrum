@@ -619,12 +619,16 @@ export default function AssessmentPage() {
           <label className="label">Contraindications (select all that apply)</label>
           <div className="space-y-2">
             {[
-              { value: 'DRUG_ALLERGY', label: 'Drug allergies' },
               { value: 'HEART_FAILURE', label: 'Heart failure' },
-              { value: 'MULTIPLE_SCLEROSIS', label: 'Multiple sclerosis' },
-              { value: 'INFLAMMATORY_BOWEL_DISEASE', label: 'Inflammatory bowel disease' },
+              { value: 'MULTIPLE_SCLEROSIS', label: 'Multiple sclerosis / demyelinating disease' },
+              { value: 'INFLAMMATORY_BOWEL_DISEASE', label: 'Inflammatory bowel disease (Crohn\'s, UC)' },
               { value: 'ACTIVE_INFECTION', label: 'Active infection' },
               { value: 'PREGNANCY', label: 'Pregnancy/planning pregnancy' },
+              { value: 'DEPRESSION_SUICIDAL_IDEATION', label: 'History of depression / suicidal ideation' },
+              { value: 'THROMBOSIS_VTE', label: 'History of blood clots / thrombosis / VTE' },
+              { value: 'MALIGNANCY_LYMPHOMA', label: 'History of malignancy / lymphoma' },
+              { value: 'HEPATITIS_B_C', label: 'Active, untreated Hepatitis B or C' },
+              { value: 'TUBERCULOSIS', label: 'Active or latent tuberculosis' },
             ].map(({ value, label }) => (
               <label key={value} className="flex items-center">
                 <input

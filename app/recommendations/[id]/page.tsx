@@ -94,13 +94,25 @@ export default async function RecommendationsPage({ params }: PageProps) {
       for (const ci of contraindications) {
         const ciType = ci.type;
 
+        // SILIQ (BRODALUMAB) - BLACK BOX WARNING
+        if (drug.drugName?.toLowerCase().includes('siliq') || drug.drugName?.toLowerCase().includes('brodalumab')) {
+          if (ciType === 'DEPRESSION_SUICIDAL_IDEATION') {
+            reasons.push({
+              type: ciType,
+              severity: 'ABSOLUTE',
+              reason: 'BLACK BOX WARNING: Siliq (brodalumab) is contraindicated in patients with history of depression or suicidal ideation. Associated with increased risk of suicidal thoughts and behavior.',
+              details: ci.details
+            });
+          }
+        }
+
         // TNF INHIBITORS
         if (normalizedDrugClass.includes('TNF')) {
           if (ciType === 'HEART_FAILURE') {
             reasons.push({
               type: ciType,
               severity: 'ABSOLUTE',
-              reason: 'TNF inhibitors can worsen heart failure and increase mortality',
+              reason: 'BLACK BOX WARNING: TNF inhibitors can worsen heart failure and increase mortality in patients with moderate to severe heart failure (NYHA Class III/IV).',
               details: ci.details
             });
           }
@@ -108,41 +120,34 @@ export default async function RecommendationsPage({ params }: PageProps) {
             reasons.push({
               type: ciType,
               severity: 'ABSOLUTE',
-              reason: 'TNF inhibitors can exacerbate demyelinating diseases',
+              reason: 'TNF inhibitors can exacerbate demyelinating diseases including multiple sclerosis. Risk of new onset or worsening neurological symptoms.',
               details: ci.details
             });
           }
-          if (ciType === 'LYMPHOMA') {
+          if (ciType === 'MALIGNANCY_LYMPHOMA' || ciType === 'LYMPHOMA' || ciType === 'MALIGNANCY') {
             reasons.push({
               type: ciType,
               severity: 'RELATIVE',
-              reason: 'History of lymphoma - TNF inhibitors may increase recurrence risk. Consider risk/benefit with oncology.',
+              reason: 'BLACK BOX WARNING: TNF inhibitors may increase risk of lymphoma and other malignancies, especially in children and adolescents. History of malignancy requires oncology consultation for risk/benefit assessment.',
               details: ci.details
             });
           }
-          if (ciType === 'MALIGNANCY') {
+          if (ciType === 'HEPATITIS_B_C' || ciType === 'HEPATITIS_B') {
             reasons.push({
               type: ciType,
               severity: 'RELATIVE',
-              reason: 'Active or recent malignancy - TNF inhibitors may affect tumor surveillance. Discuss with oncology.',
+              reason: 'BLACK BOX WARNING: TNF inhibitors can cause Hepatitis B reactivation, potentially fatal. Requires antiviral prophylaxis and close monitoring. Screen for HBV before starting.',
               details: ci.details
             });
           }
-          if (ciType === 'HEPATITIS_B') {
+          if (ciType === 'TUBERCULOSIS' || ciType === 'ACTIVE_TUBERCULOSIS' || ciType === 'LATENT_TUBERCULOSIS') {
+            const isActive = ciType === 'TUBERCULOSIS' || ciType === 'ACTIVE_TUBERCULOSIS';
             reasons.push({
               type: ciType,
-              severity: 'RELATIVE',
-              reason: 'Hepatitis B can reactivate with TNF inhibitors. Requires antiviral prophylaxis and monitoring.',
-              details: ci.details
-            });
-          }
-          if (ciType === 'ACTIVE_TUBERCULOSIS' || ciType === 'LATENT_TUBERCULOSIS') {
-            reasons.push({
-              type: ciType,
-              severity: ciType === 'ACTIVE_TUBERCULOSIS' ? 'ABSOLUTE' : 'RELATIVE',
-              reason: ciType === 'ACTIVE_TUBERCULOSIS'
-                ? 'Active TB must be treated before starting any biologic, especially TNF inhibitors.'
-                : 'Latent TB requires prophylactic treatment before starting TNF inhibitor.',
+              severity: isActive ? 'ABSOLUTE' : 'RELATIVE',
+              reason: isActive
+                ? 'BLACK BOX WARNING: Active TB must be treated before starting TNF inhibitor. Risk of TB reactivation and disseminated disease.'
+                : 'BLACK BOX WARNING: Latent TB requires prophylactic treatment before starting TNF inhibitor. High risk of reactivation with disseminated or extrapulmonary TB.',
               details: ci.details
             });
           }
@@ -150,11 +155,19 @@ export default async function RecommendationsPage({ params }: PageProps) {
 
         // JAK INHIBITORS
         if (normalizedDrugClass.includes('JAK') || normalizedDrugClass.includes('TYK2')) {
-          if (ciType === 'THROMBOSIS' || ciType === 'VENOUS_THROMBOEMBOLISM') {
+          if (ciType === 'THROMBOSIS_VTE' || ciType === 'THROMBOSIS' || ciType === 'VENOUS_THROMBOEMBOLISM') {
             reasons.push({
               type: ciType,
               severity: 'ABSOLUTE',
-              reason: 'JAK inhibitors significantly increase VTE risk. Contraindicated in patients with thrombosis history.',
+              reason: 'BLACK BOX WARNING: JAK inhibitors significantly increase risk of venous thromboembolism (VTE) including pulmonary embolism and deep vein thrombosis. Contraindicated in patients with history of blood clots.',
+              details: ci.details
+            });
+          }
+          if (ciType === 'MALIGNANCY_LYMPHOMA' || ciType === 'LYMPHOMA' || ciType === 'MALIGNANCY') {
+            reasons.push({
+              type: ciType,
+              severity: 'RELATIVE',
+              reason: 'BLACK BOX WARNING: JAK inhibitors increase risk of malignancies including lymphoma and lung cancer. History of malignancy requires oncology consultation.',
               details: ci.details
             });
           }
@@ -162,40 +175,71 @@ export default async function RecommendationsPage({ params }: PageProps) {
             reasons.push({
               type: ciType,
               severity: 'RELATIVE',
-              reason: 'JAK inhibitors increase MACE risk. Consider in patients >50 with CV risk factors. Monitor closely.',
+              reason: 'BLACK BOX WARNING: JAK inhibitors increase risk of major adverse cardiovascular events (MACE) including heart attack and stroke, especially in patients >50 with cardiovascular risk factors. Monitor closely.',
               details: ci.details
             });
           }
         }
 
-        // IL-17 INHIBITORS
+        // IL-17 INHIBITORS (COSENTYX, TALTZ, SILIQ)
         if (normalizedDrugClass.includes('IL17') || normalizedDrugClass.includes('IL-17')) {
           if (ciType === 'INFLAMMATORY_BOWEL_DISEASE') {
             reasons.push({
               type: ciType,
               severity: 'RELATIVE',
-              reason: 'IL-17 inhibitors can worsen or trigger IBD. Use with caution and GI consultation.',
+              reason: 'IL-17 inhibitors can worsen or trigger inflammatory bowel disease (Crohn\'s disease, ulcerative colitis). Requires GI consultation and close monitoring.',
               details: ci.details
             });
           }
         }
 
-        // ALL BIOLOGICS
+        // ALL BIOLOGICS - SERIOUS INFECTIONS
         if (ciType === 'ACTIVE_INFECTION') {
           reasons.push({
             type: ciType,
             severity: 'ABSOLUTE',
-            reason: 'Active infection must be treated before starting any biologic therapy.',
+            reason: 'Active infection must be treated and resolved before starting any biologic therapy. Biologics suppress immune function and can worsen infections.',
             details: ci.details
           });
         }
+
+        // ALL BIOLOGICS - PREGNANCY
         if (ciType === 'PREGNANCY') {
           reasons.push({
             type: ciType,
             severity: 'RELATIVE',
-            reason: 'Pregnancy requires careful risk/benefit assessment. Some biologics are safer than others. Consult maternal-fetal medicine.',
+            reason: 'Pregnancy requires careful risk/benefit assessment. Some biologics are safer than others (e.g., Certolizumab has less placental transfer). Consult maternal-fetal medicine.',
             details: ci.details
           });
+        }
+
+        // ALL BIOLOGICS - TUBERCULOSIS SCREENING
+        if (ciType === 'TUBERCULOSIS' || ciType === 'ACTIVE_TUBERCULOSIS' || ciType === 'LATENT_TUBERCULOSIS') {
+          // Only add for non-TNF biologics (TNF already handled above)
+          if (!normalizedDrugClass.includes('TNF')) {
+            const isActive = ciType === 'TUBERCULOSIS' || ciType === 'ACTIVE_TUBERCULOSIS';
+            reasons.push({
+              type: ciType,
+              severity: isActive ? 'ABSOLUTE' : 'RELATIVE',
+              reason: isActive
+                ? 'Active TB must be treated before starting any biologic. Biologics increase risk of TB reactivation.'
+                : 'Latent TB should be treated before starting biologic therapy. Monitor for TB reactivation.',
+              details: ci.details
+            });
+          }
+        }
+
+        // ALL BIOLOGICS - HEPATITIS B/C
+        if (ciType === 'HEPATITIS_B_C' || ciType === 'HEPATITIS_B') {
+          // Only add for non-TNF biologics (TNF already handled above with stronger warning)
+          if (!normalizedDrugClass.includes('TNF')) {
+            reasons.push({
+              type: ciType,
+              severity: 'RELATIVE',
+              reason: 'Active, untreated Hepatitis B or C requires treatment before starting biologic. Risk of viral reactivation. Screen for HBV/HCV before starting therapy.',
+              details: ci.details
+            });
+          }
         }
       }
 
