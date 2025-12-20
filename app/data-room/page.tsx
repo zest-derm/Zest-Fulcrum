@@ -734,13 +734,13 @@ export default function DataRoom() {
                       </div>
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Recommendations
+                      Completed
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Accepted
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Declined
+                      Declined All
                     </th>
                     <th
                       className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
@@ -770,16 +770,16 @@ export default function DataRoom() {
                         {provider.totalAssessments}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {provider.totalRecommendations}
+                        {provider.assessmentsWithFeedback}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className="px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
-                          {provider.acceptedCount}
+                          {provider.assessmentsWithAcceptance}
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className="px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">
-                          {provider.declinedCount}
+                          {provider.assessmentsWithFeedback - provider.assessmentsWithAcceptance}
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
@@ -837,45 +837,6 @@ export default function DataRoom() {
                           </div>
                         )
                       )}
-                    </div>
-                    <div>
-                      <h4 className="text-sm font-medium text-gray-700 mb-2">
-                        By Disease Status
-                      </h4>
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-gray-600">
-                            In Remission
-                          </span>
-                          <span className="text-sm font-medium text-gray-900">
-                            {provider.byRemission.remission.total > 0
-                              ? (
-                                  (provider.byRemission.remission.accepted /
-                                    provider.byRemission.remission.total) *
-                                  100
-                                ).toFixed(1)
-                              : 0}
-                            % ({provider.byRemission.remission.accepted}/
-                            {provider.byRemission.remission.total})
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-gray-600">
-                            Disease Active
-                          </span>
-                          <span className="text-sm font-medium text-gray-900">
-                            {provider.byRemission.active.total > 0
-                              ? (
-                                  (provider.byRemission.active.accepted /
-                                    provider.byRemission.active.total) *
-                                  100
-                                ).toFixed(1)
-                              : 0}
-                            % ({provider.byRemission.active.accepted}/
-                            {provider.byRemission.active.total})
-                          </span>
-                        </div>
-                      </div>
                     </div>
                   </div>
                 </div>
@@ -942,13 +903,13 @@ export default function DataRoom() {
                       </div>
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Recommendations
+                      Completed
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Accepted
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Declined
+                      Declined All
                     </th>
                     <th
                       className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
@@ -978,16 +939,16 @@ export default function DataRoom() {
                         {diagnosis.totalAssessments}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {diagnosis.totalRecommendations}
+                        {diagnosis.assessmentsWithFeedback}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className="px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
-                          {diagnosis.acceptedCount}
+                          {diagnosis.assessmentsWithAcceptance}
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className="px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">
-                          {diagnosis.declinedCount}
+                          {diagnosis.assessmentsWithFeedback - diagnosis.assessmentsWithAcceptance}
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
@@ -1024,42 +985,13 @@ export default function DataRoom() {
                     </h3>
                   </div>
                   <div className="p-6">
-                    <h4 className="text-sm font-medium text-gray-700 mb-2">
-                      By Disease Status
-                    </h4>
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-gray-600">
-                          In Remission
-                        </span>
-                        <span className="text-sm font-medium text-gray-900">
-                          {diagnosis.byRemission.remission.total > 0
-                            ? (
-                                (diagnosis.byRemission.remission.accepted /
-                                  diagnosis.byRemission.remission.total) *
-                                100
-                              ).toFixed(1)
-                            : 0}
-                          % ({diagnosis.byRemission.remission.accepted}/
-                          {diagnosis.byRemission.remission.total})
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-gray-600">
-                          Disease Active
-                        </span>
-                        <span className="text-sm font-medium text-gray-900">
-                          {diagnosis.byRemission.active.total > 0
-                            ? (
-                                (diagnosis.byRemission.active.accepted /
-                                  diagnosis.byRemission.active.total) *
-                                100
-                              ).toFixed(1)
-                            : 0}
-                          % ({diagnosis.byRemission.active.accepted}/
-                          {diagnosis.byRemission.active.total})
-                        </span>
-                      </div>
+                    <div className="text-sm text-gray-600">
+                      <p className="font-medium text-gray-900 text-lg mb-2">
+                        {diagnosis.acceptanceRate.toFixed(1)}% Acceptance Rate
+                      </p>
+                      <p>
+                        {diagnosis.assessmentsWithAcceptance} accepted out of {diagnosis.assessmentsWithFeedback} completed assessments
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -1190,9 +1122,6 @@ export default function DataRoom() {
                       Decision Date
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Recommendations
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Option Selected
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -1252,9 +1181,6 @@ export default function DataRoom() {
                             ) : (
                               <span className="text-gray-400">-</span>
                             )}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {totalRecs}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                             {acceptedRec ? (
