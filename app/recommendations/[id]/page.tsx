@@ -4,6 +4,7 @@ import { AlertCircle, TrendingDown, DollarSign, FileText } from 'lucide-react';
 import { Suspense } from 'react';
 import ContraindicatedDrugsToggle from './ContraindicatedDrugsToggle';
 import RecommendationFeedback from './RecommendationFeedback';
+import FormularyReference from './FormularyReference';
 
 interface PageProps {
   params: { id: string };
@@ -555,102 +556,11 @@ export default async function RecommendationsPage({ params }: PageProps) {
         </div>
       )}
 
-      {/* Complete Formulary Reference */}
-      {safeFormularyDrugs.length > 0 && (
-        <div className="mt-8">
-          <div className="card">
-            <h2 className="mb-4">Complete Formulary Reference</h2>
-            <p className="text-sm text-gray-600 mb-4">
-              All appropriate biologic options for {assessment.diagnosis.replace(/_/g, ' ').toLowerCase()} (excluding contraindicated drugs)
-            </p>
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Drug Name
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Formulation
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Strength
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      NDC
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Tier
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Prior Auth
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Restrictions
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Quantity Limit
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {safeFormularyDrugs.map((drug, idx) => (
-                    <tr key={idx} className={
-                      drug.tier === 1 ? 'bg-green-50' :
-                      drug.tier === 2 ? 'bg-yellow-50' :
-                      drug.tier === 5 ? 'bg-red-100' : ''
-                    }>
-                      <td className="px-4 py-3 text-sm">
-                        <div className="font-medium text-gray-900">{drug.drugName}</div>
-                        <div className="text-xs text-gray-500">{drug.genericName}</div>
-                        <div className="text-xs text-gray-500 mt-1">{drug.drugClass}</div>
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-600">
-                        {drug.formulation || '-'}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-600">
-                        {drug.strength || '-'}
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap text-xs font-mono text-gray-600">
-                        {drug.ndcCode || '-'}
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap text-sm">
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                          drug.tier === 1 ? 'bg-green-100 text-green-800' :
-                          drug.tier === 2 ? 'bg-yellow-100 text-yellow-800' :
-                          drug.tier === 3 ? 'bg-orange-100 text-orange-800' :
-                          drug.tier === 4 ? 'bg-red-100 text-red-800' :
-                          drug.tier === 5 ? 'bg-gray-100 text-gray-800' :
-                          'bg-gray-100 text-gray-600'
-                        }`}>
-                          Tier {drug.tier}{drug.tier === 5 ? ' (Not Covered)' : ''}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap text-sm">
-                        {drug.requiresPA === 'Yes' ? (
-                          <span className="px-2 py-1 rounded bg-amber-100 text-amber-800 text-xs font-medium">
-                            Yes
-                          </span>
-                        ) : drug.requiresPA === 'No' ? (
-                          <span className="text-gray-500 text-xs">No</span>
-                        ) : (
-                          <span className="text-gray-400 text-xs">{drug.requiresPA || '-'}</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-600">
-                        {drug.restrictions || '-'}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-600">
-                        {drug.quantityLimit || '-'}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Complete Formulary Reference - Password Protected */}
+      <FormularyReference
+        formularyDrugs={safeFormularyDrugs}
+        diagnosis={assessment.diagnosis}
+      />
 
       {/* Contraindicated Drugs Toggle */}
       <ContraindicatedDrugsToggle
