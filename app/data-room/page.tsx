@@ -658,8 +658,7 @@ export default function DataRoom() {
                           {formatDiagnosis(diagnosis.diagnosis)}
                         </p>
                         <p className="text-sm text-gray-600">
-                          {diagnosis.totalAssessments} assessments,{' '}
-                          {diagnosis.totalRecommendations} recommendations
+                          {diagnosis.totalAssessments} assessments
                         </p>
                       </div>
                       <div className="text-right ml-4">
