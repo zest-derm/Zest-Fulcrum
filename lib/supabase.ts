@@ -2,9 +2,18 @@ import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 
-// Create a single supabase client for interacting with your database
+// Client-side supabase client (uses anon key)
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
+// Server-side supabase client with service role (bypasses RLS)
+export const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
+  auth: {
+    autoRefreshToken: false,
+    persistSession: false,
+  },
+});
 
 // Storage bucket name for citations
 export const CITATIONS_BUCKET = 'citations';
@@ -22,7 +31,8 @@ export async function uploadCitationPdf(
   const fileName = `${Date.now()}-${file.name}`;
   const filePath = `${drugName}/${fileName}`;
 
-  const { data, error } = await supabase.storage
+  // Use admin client for server-side uploads (bypasses RLS)
+  const { data, error } = await supabaseAdmin.storage
     .from(CITATIONS_BUCKET)
     .upload(filePath, file, {
       contentType: 'application/pdf',
@@ -34,7 +44,7 @@ export async function uploadCitationPdf(
   }
 
   // Get public URL
-  const { data: urlData } = supabase.storage
+  const { data: urlData } = supabaseAdmin.storage
     .from(CITATIONS_BUCKET)
     .getPublicUrl(filePath);
 
@@ -49,7 +59,7 @@ export async function uploadCitationPdf(
  * @param path - The path to the file in storage
  */
 export async function deleteCitationPdf(path: string): Promise<void> {
-  const { error } = await supabase.storage
+  const { error } = await supabaseAdmin.storage
     .from(CITATIONS_BUCKET)
     .remove([path]);
 
@@ -64,7 +74,7 @@ export async function deleteCitationPdf(path: string): Promise<void> {
  * @returns The signed URL
  */
 export async function getSignedPdfUrl(path: string): Promise<string> {
-  const { data, error } = await supabase.storage
+  const { data, error } = await supabaseAdmin.storage
     .from(CITATIONS_BUCKET)
     .createSignedUrl(path, 3600); // 1 hour
 
