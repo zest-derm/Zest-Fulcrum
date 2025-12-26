@@ -31,8 +31,8 @@ export default function HomePage() {
           <p className="text-gray-600 mb-4">
             Upload and manage formulary data and clinical evidence
           </p>
-          <PasswordProtectedLink href="/admin/data" className="text-primary-600 hover:text-primary-700 font-medium flex items-center transition-all duration-150 group" storageKey="manage_data_authenticated">
-            Manage Data <ArrowRight className="w-4 h-4 ml-1 transition-transform duration-150 group-hover:translate-x-1" />
+          <PasswordProtectedLink href="/admin" className="text-primary-600 hover:text-primary-700 font-medium flex items-center transition-all duration-150 group" storageKey="data_upload_authenticated">
+            Upload Data <ArrowRight className="w-4 h-4 ml-1 transition-transform duration-150 group-hover:translate-x-1" />
           </PasswordProtectedLink>
         </div>
 

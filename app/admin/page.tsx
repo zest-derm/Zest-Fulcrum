@@ -250,7 +250,7 @@ export default function AdminPage() {
         </Link>
       </div>
 
-      <div className="max-w-2xl">
+      <div className="max-w-2xl space-y-6">
         <UploadCard
           type="formulary"
           title="Formulary Data"
@@ -258,6 +258,25 @@ export default function AdminPage() {
           icon={FileSpreadsheet}
           acceptedFormats=".csv"
         />
+
+        <Link href="/admin/citations" className="card block hover:shadow-lg transition-shadow cursor-pointer">
+          <div className="flex items-start">
+            <FileSpreadsheet className="w-10 h-10 text-primary-600 mr-4" />
+            <div className="flex-1">
+              <h3 className="text-lg font-semibold mb-2">Clinical Evidence</h3>
+              <p className="text-gray-600 mb-3">
+                Upload and manage peer-reviewed literature citations with AI-powered metadata extraction
+              </p>
+              <div className="text-xs text-gray-500 mb-3">
+                Accepted: .pdf
+              </div>
+              <span className="btn btn-primary inline-flex items-center">
+                <Upload className="w-4 h-4 mr-2" />
+                Manage Citations
+              </span>
+            </div>
+          </div>
+        </Link>
       </div>
 
       <div className="mt-8 card">
