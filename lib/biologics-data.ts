@@ -181,6 +181,33 @@ export const BIOLOGICS_DATA: BiologicOption[] = [
     indications: ['PSORIASIS', 'PSORIATIC_ARTHRITIS'],
   },
   {
+    brand: 'Avsola',
+    generic: 'infliximab-axxq',
+    approvedDoses: ['5mg/kg'],
+    standardFrequencies: [
+      { value: 'every-8-weeks', label: 'Every 8 weeks (after loading)' },
+    ],
+    indications: ['PSORIASIS', 'PSORIATIC_ARTHRITIS'],
+  },
+  {
+    brand: 'Ixifi',
+    generic: 'infliximab-qbtx',
+    approvedDoses: ['5mg/kg'],
+    standardFrequencies: [
+      { value: 'every-8-weeks', label: 'Every 8 weeks (after loading)' },
+    ],
+    indications: ['PSORIASIS', 'PSORIATIC_ARTHRITIS'],
+  },
+  {
+    brand: 'Zymfentra',
+    generic: 'infliximab-dyyb (SC)',
+    approvedDoses: ['120mg'],
+    standardFrequencies: [
+      { value: 'every-2-weeks', label: 'Every 2 weeks' },
+    ],
+    indications: ['PSORIASIS', 'PSORIATIC_ARTHRITIS'],
+  },
+  {
     brand: 'Cimzia',
     generic: 'certolizumab',
     approvedDoses: ['200mg', '400mg'],
@@ -230,6 +257,15 @@ export const BIOLOGICS_DATA: BiologicOption[] = [
     ],
     indications: ['PSORIASIS'],
   },
+  {
+    brand: 'Bimzelx',
+    generic: 'bimekizumab',
+    approvedDoses: ['160mg'],
+    standardFrequencies: [
+      { value: 'every-4-weeks', label: 'Every 4 weeks (after loading)' },
+    ],
+    indications: ['PSORIASIS', 'PSORIATIC_ARTHRITIS'],
+  },
 
   // IL-23 Inhibitors
   {
@@ -256,6 +292,15 @@ export const BIOLOGICS_DATA: BiologicOption[] = [
     approvedDoses: ['100mg'],
     standardFrequencies: [
       { value: 'every-12-weeks', label: 'Every 12 weeks (after loading)' },
+    ],
+    indications: ['PSORIASIS'],
+  },
+  {
+    brand: 'Omvoh',
+    generic: 'mirikizumab',
+    approvedDoses: ['250mg'],
+    standardFrequencies: [
+      { value: 'every-8-weeks', label: 'Every 8 weeks (after loading)' },
     ],
     indications: ['PSORIASIS'],
   },
@@ -339,6 +384,15 @@ export const BIOLOGICS_DATA: BiologicOption[] = [
     ],
     indications: ['PSORIASIS'],
   },
+  {
+    brand: 'Opzelura',
+    generic: 'ruxolitinib (topical)',
+    approvedDoses: ['1.5%'],
+    standardFrequencies: [
+      { value: 'twice-daily', label: 'Twice daily' },
+    ],
+    indications: ['ATOPIC_DERMATITIS'],
+  },
 ];
 
 /**
@@ -382,6 +436,7 @@ export function parseFrequencyValue(value: string): { number: number; unit: stri
   // Handle standard frequency codes
   const standardMap: Record<string, { number: number; unit: string }> = {
     'daily': { number: 1, unit: 'days' },
+    'twice-daily': { number: 0.5, unit: 'days' },
     'weekly': { number: 1, unit: 'weeks' },
     'twice-weekly': { number: 3.5, unit: 'days' },
     'monthly': { number: 1, unit: 'months' },

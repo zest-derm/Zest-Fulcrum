@@ -5,18 +5,10 @@ export const dynamic = 'force-dynamic';
 import { useState, useEffect } from 'react';
 import { Upload, FileText, ExternalLink, Edit2, Save, X, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 import PasswordProtection from '@/components/PasswordProtection';
+import { BIOLOGICS_DATA } from '@/lib/biologics-data';
 
-// Comprehensive list of biologics for dermatology (originals + biosimilars)
-const BIOLOGIC_DRUGS = [
-  'Humira', 'Enbrel', 'Remicade', 'Cimzia', 'Simponi',
-  'Amjevita', 'Cyltezo', 'Hadlima', 'Hyrimoz', 'Yusimry', 'Abrilada', 'Idacio',
-  'Erelzi', 'Eticovo',
-  'Avsola', 'Inflectra', 'Ixifi', 'Renflexis', 'Zymfentra',
-  'Skyrizi', 'Tremfya', 'Omvoh', 'Ilumya',
-  'Cosentyx', 'Taltz', 'Siliq', 'Bimzelx',
-  'Dupixent', 'Adbry',
-  'Rinvoq', 'Cibinqo', 'Sotyktu', 'Opzelura',
-].sort();
+// Get all biologic brand names from the master data source
+const BIOLOGIC_DRUGS = BIOLOGICS_DATA.map(bio => bio.brand).sort();
 
 const INDICATION_OPTIONS = [
   { value: 'PSORIASIS', label: 'Psoriasis' },

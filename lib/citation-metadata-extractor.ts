@@ -1,4 +1,5 @@
 import OpenAI from 'openai';
+import { BIOLOGICS_DATA } from './biologics-data';
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -34,6 +35,12 @@ export async function extractCitationMetadata(
       ? fullText.substring(0, maxLength) + '...[truncated]'
       : fullText;
 
+    // Generate drug list with generic→brand mappings
+    const drugList = BIOLOGICS_DATA.map(bio => bio.brand).join(', ');
+    const genericMappings = BIOLOGICS_DATA
+      .map(bio => `${bio.generic}→${bio.brand}`)
+      .join(', ');
+
     const prompt = `You are a clinical research specialist. Extract all relevant metadata from this research paper.
 
 Paper text:
@@ -51,9 +58,9 @@ Extract the following information and return as JSON:
 8. citationType - One of: EFFICACY, SAFETY, BIOSIMILAR_EQUIVALENCE, HEAD_TO_HEAD, LONG_TERM_OUTCOMES, PHARMACOKINETICS, REAL_WORLD_EVIDENCE
 9. sampleSize - Number of participants (or null)
 10. population - Study population description (e.g., "Moderate-to-severe plaque psoriasis")
-11. drugName - Primary drug being studied (brand name preferred). For head-to-head trials, use the drug that showed superior efficacy or the newer/focus drug (not the comparator). For example, if Skyrizi vs Stelara and Skyrizi won, use "Skyrizi".
+11. drugName - Primary drug being studied. MUST use exact brand name from this list: ${drugList}. Common generic→brand mappings: ${genericMappings}. For head-to-head trials, use the drug that showed superior efficacy or the newer/focus drug (not the comparator).
 12. indications - Array of relevant conditions from: PSORIASIS, PSORIATIC_ARTHRITIS, ATOPIC_DERMATITIS, HIDRADENITIS_SUPPURATIVA, CROHNS_DISEASE, ULCERATIVE_COLITIS, RHEUMATOID_ARTHRITIS, ANKYLOSING_SPONDYLITIS, OTHER
-13. referenceDrugName - For head-to-head or biosimilar studies, the comparison drug (e.g., "Stelara" if comparing Skyrizi vs Stelara). Otherwise null.
+13. referenceDrugName - For head-to-head or biosimilar studies, the comparison drug brand name (use same list as drugName). Otherwise null.
 14. keyFindings - 3-5 sentence summary of key clinical findings
 
 Return ONLY valid JSON in this exact format:
