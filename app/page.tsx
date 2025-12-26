@@ -12,11 +12,10 @@ export default function HomePage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
           <div className="text-center">
             <h1 className="text-4xl font-bold mb-4">
-              Biologic Decision Support System
+              Formulary-Aligned Medication Decision Support Tool
             </h1>
             <p className="text-xl text-primary-50 max-w-3xl mx-auto">
-              Select the next best biologic from your formulary with intelligent,
-              tier-based recommendations and comorbidity matching
+              Select the next best medication from your formulary with clinically and formulary-aligned recommendations
             </p>
           </div>
         </div>
@@ -40,7 +39,7 @@ export default function HomePage() {
           <FileText className="w-12 h-12 text-primary-600 mb-4 transition-transform duration-200 group-hover:scale-110" />
           <h3 className="mb-2">Quick Assessment</h3>
           <p className="text-gray-600 mb-4">
-            Simplified patient assessment form with automatic data population and tier-based recommendations
+            Patient assessment form that outputs clinically and formulary-aligned medication recommendations
           </p>
           <Link href="/assess" className="text-primary-600 hover:text-primary-700 font-medium flex items-center transition-all duration-150 group">
             Start Assessment <ArrowRight className="w-4 h-4 ml-1 transition-transform duration-150 group-hover:translate-x-1" />
@@ -69,7 +68,7 @@ export default function HomePage() {
             <div>
               <h4 className="font-semibold mb-1">Input Patient Assessment</h4>
               <p className="text-gray-600">
-                Select partner, enter current biologic (if any), diagnosis, comorbidities (PsA, BMI), and inappropriate biologics
+                Select partner, enter current medication (if any), diagnosis, comorbidities (PsA, BMI), and inappropriate medications
               </p>
             </div>
           </li>
@@ -80,7 +79,7 @@ export default function HomePage() {
             <div>
               <h4 className="font-semibold mb-1">Intelligent Filtering & Ranking</h4>
               <p className="text-gray-600">
-                System filters formulary by tier, matches comorbidities (PsA, asthma, IBD), and ranks by efficacy
+                System filters formulary by tier, matches comorbidities and indications, and ranks by clinical efficacy
               </p>
             </div>
           </li>
@@ -89,9 +88,9 @@ export default function HomePage() {
               3
             </span>
             <div>
-              <h4 className="font-semibold mb-1">Tier-Based Recommendations</h4>
+              <h4 className="font-semibold mb-1">Formulary-Aligned Recommendations</h4>
               <p className="text-gray-600">
-                Receive 3 ranked options prioritizing lowest tier, with clinical rationale and cost analysis
+                Receive 3 ranked medication options prioritizing lowest tier, with clinical rationale and formulary alignment
               </p>
             </div>
           </li>
