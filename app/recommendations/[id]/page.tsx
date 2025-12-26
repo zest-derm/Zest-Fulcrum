@@ -342,8 +342,10 @@ export default async function RecommendationsPage({ params }: PageProps) {
       )?.tier
     : undefined;
 
-  // Get plan name for display
+  // Get plan name and formulary version for display
   const planName = assessment.plan?.planName || assessment.patient?.plan?.planName || assessment.patient?.formularyPlanName || 'Unknown';
+  const formularyVersion = assessment.plan?.formularyVersion || assessment.patient?.plan?.formularyVersion || null;
+  const formularyReference = formularyVersion ? `${planName} - ${formularyVersion}` : planName;
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
@@ -357,6 +359,12 @@ export default async function RecommendationsPage({ params }: PageProps) {
         </h1>
         <div className="flex items-center gap-6 text-sm text-gray-600">
           <span>Plan: {planName}</span>
+          {formularyVersion && (
+            <>
+              <span>•</span>
+              <span>Formulary: {formularyVersion}</span>
+            </>
+          )}
           <span>•</span>
           <span>
             Current: {currentBiologic?.drugName || 'None'} {currentBiologic?.dose} {currentBiologic?.frequency}
@@ -369,6 +377,22 @@ export default async function RecommendationsPage({ params }: PageProps) {
               </span></>
             )}
           </span>
+        </div>
+      </div>
+
+      {/* Formulary Reference Banner */}
+      <div className="card mb-6 bg-blue-50 border-blue-200">
+        <div className="flex items-start gap-3">
+          <div className="flex-shrink-0 w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center">
+            <FileText className="h-5 w-5" />
+          </div>
+          <div className="flex-1">
+            <h3 className="font-semibold text-blue-900 mb-1">Formulary Reference</h3>
+            <p className="text-sm text-blue-800">
+              The following recommendations are based on the <strong>{formularyReference}</strong> formulary.
+              All tier placements, cost calculations, and coverage determinations reflect this specific formulary version.
+            </p>
+          </div>
         </div>
       </div>
 
