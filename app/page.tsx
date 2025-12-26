@@ -62,10 +62,21 @@ export default function HomePage() {
           <Upload className="w-12 h-12 text-primary-600 mb-4 transition-transform duration-200 group-hover:scale-110" />
           <h3 className="mb-2">Manage Data</h3>
           <p className="text-gray-600 mb-4">
-            Upload and manage formulary data, insurance plans, and clinical knowledge base
+            Upload and manage formulary data and insurance plans
           </p>
           <PasswordProtectedLink href="/admin/data" className="text-primary-600 hover:text-primary-700 font-medium flex items-center transition-all duration-150 group" storageKey="manage_data_authenticated">
             Manage Data <ArrowRight className="w-4 h-4 ml-1 transition-transform duration-150 group-hover:translate-x-1" />
+          </PasswordProtectedLink>
+        </div>
+
+        <div className="card card-hover transform transition-all duration-200 hover:-translate-y-1">
+          <FileText className="w-12 h-12 text-primary-600 mb-4 transition-transform duration-200 group-hover:scale-110" />
+          <h3 className="mb-2">Clinical Citations</h3>
+          <p className="text-gray-600 mb-4">
+            Upload and manage peer-reviewed literature citations for evidence-based recommendations
+          </p>
+          <PasswordProtectedLink href="/admin/citations" className="text-primary-600 hover:text-primary-700 font-medium flex items-center transition-all duration-150 group" storageKey="manage_data_authenticated">
+            Manage Citations <ArrowRight className="w-4 h-4 ml-1 transition-transform duration-150 group-hover:translate-x-1" />
           </PasswordProtectedLink>
         </div>
       </div>

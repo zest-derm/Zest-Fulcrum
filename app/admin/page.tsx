@@ -3,11 +3,11 @@
 export const dynamic = 'force-dynamic';
 
 import { useState, useEffect } from 'react';
-import { Upload, CheckCircle, AlertCircle, FileSpreadsheet, BookOpen, FolderOpen, X } from 'lucide-react';
+import { Upload, CheckCircle, AlertCircle, FileSpreadsheet, FolderOpen, X } from 'lucide-react';
 import Link from 'next/link';
 import PasswordProtection from '@/components/PasswordProtection';
 
-type UploadType = 'formulary' | 'knowledge';
+type UploadType = 'formulary';
 
 interface UploadResult {
   success: boolean;
@@ -51,17 +51,12 @@ export default function AdminPage() {
   };
 
   const handleFileSelected = (type: UploadType, files: FileList) => {
-    if (type === 'formulary') {
-      // Show modal for dataset labeling
-      setPendingUpload({ type, files });
-      setDatasetLabel('');
-      setSelectedPlanId('');
-      setCreatingNewPlan(false);
-      setShowModal(true);
-    } else {
-      // No labeling needed for knowledge
-      handleUpload(type, files, null, null);
-    }
+    // Show modal for dataset labeling
+    setPendingUpload({ type, files });
+    setDatasetLabel('');
+    setSelectedPlanId('');
+    setCreatingNewPlan(false);
+    setShowModal(true);
   };
 
   const handleModalSubmit = async () => {
@@ -100,69 +95,27 @@ export default function AdminPage() {
   const handleUpload = async (type: UploadType, files: FileList, label: string | null, planId: string | null) => {
     setUploading(type);
 
-    // For knowledge base, support multiple files
-    if (type === 'knowledge' && files.length > 1) {
-      const results: UploadResult[] = [];
-      let totalProcessed = 0;
-      let totalFailed = 0;
+    // Single file upload
+    const file = files[0];
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('type', type);
+    if (label) formData.append('datasetLabel', label);
+    if (planId) formData.append('planId', planId);
 
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('type', type);
+    try {
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
+      });
 
-        try {
-          const res = await fetch('/api/upload', {
-            method: 'POST',
-            body: formData,
-          });
-
-          const result = await res.json();
-          results.push(result);
-          if (result.success) {
-            totalProcessed += result.rowsProcessed || 0;
-          } else {
-            totalFailed++;
-          }
-        } catch (error: any) {
-          totalFailed++;
-          results.push({ success: false, message: `${file.name}: ${error.message}` });
-        }
-      }
-
+      const result = await res.json();
+      setResults(prev => ({ ...prev, [type]: result }));
+    } catch (error: any) {
       setResults(prev => ({
         ...prev,
-        [type]: {
-          success: totalFailed < files.length,
-          rowsProcessed: totalProcessed,
-          rowsFailed: totalFailed,
-          message: `Uploaded ${totalProcessed} files (${totalFailed} failed)`
-        }
+        [type]: { success: false, message: error.message }
       }));
-    } else {
-      // Single file upload
-      const file = files[0];
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('type', type);
-      if (label) formData.append('datasetLabel', label);
-      if (planId) formData.append('planId', planId);
-
-      try {
-        const res = await fetch('/api/upload', {
-          method: 'POST',
-          body: formData,
-        });
-
-        const result = await res.json();
-        setResults(prev => ({ ...prev, [type]: result }));
-      } catch (error: any) {
-        setResults(prev => ({
-          ...prev,
-          [type]: { success: false, message: error.message }
-        }));
-      }
     }
 
     setUploading(null);
@@ -219,7 +172,7 @@ export default function AdminPage() {
                 type="file"
                 className="hidden"
                 accept={acceptedFormats}
-                multiple={type === 'knowledge'}
+                multiple={false}
                 onChange={(e) => {
                   const files = e.target.files;
                   if (files && files.length > 0) handleFileSelected(type, files);
@@ -285,7 +238,7 @@ export default function AdminPage() {
         <div>
           <h1 className="mb-2">Data Upload</h1>
           <p className="text-gray-600">
-            Upload CSV files for formulary data and clinical knowledge
+            Upload CSV files for formulary data
           </p>
         </div>
         <Link
@@ -297,21 +250,13 @@ export default function AdminPage() {
         </Link>
       </div>
 
-      <div className="grid md:grid-cols-2 gap-6">
+      <div className="max-w-2xl">
         <UploadCard
           type="formulary"
           title="Formulary Data"
           description="Upload drug formulary with tiers, costs, and PA requirements"
           icon={FileSpreadsheet}
           acceptedFormats=".csv"
-        />
-
-        <UploadCard
-          type="knowledge"
-          title="Knowledge Base"
-          description="Upload clinical guidelines and evidence documents (supports multiple files)"
-          icon={BookOpen}
-          acceptedFormats=".pdf,.md,.txt"
         />
       </div>
 

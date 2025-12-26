@@ -529,3 +529,91 @@ model NdcMapping {
   @@index([drugName])
   @@index([genericName])
 }
+
+// ============================================
+// CLINICAL CITATIONS & EVIDENCE
+// ============================================
+
+enum CitationType {
+  EFFICACY                  // Efficacy data (RCT, observational)
+  SAFETY                    // Safety/adverse events data
+  BIOSIMILAR_EQUIVALENCE    // Biosimilar similarity studies
+  HEAD_TO_HEAD              // Direct comparison studies
+  LONG_TERM_OUTCOMES        // Long-term efficacy/safety data
+  PHARMACOKINETICS          // PK/PD studies
+  REAL_WORLD_EVIDENCE       // Real-world effectiveness
+}
+
+enum StudyType {
+  RCT                       // Randomized controlled trial
+  SYSTEMATIC_REVIEW         // Systematic review
+  META_ANALYSIS             // Meta-analysis
+  OBSERVATIONAL             // Observational study
+  CASE_SERIES               // Case series/reports
+  REGISTRY                  // Registry data
+}
+
+enum IndicationType {
+  PSORIASIS
+  PSORIATIC_ARTHRITIS
+  ATOPIC_DERMATITIS
+  HIDRADENITIS_SUPPURATIVA
+  CROHNS_DISEASE
+  ULCERATIVE_COLITIS
+  RHEUMATOID_ARTHRITIS
+  ANKYLOSING_SPONDYLITIS
+  OTHER
+}
+
+model Citation {
+  id                String          @id @default(cuid())
+
+  // Citation metadata
+  title             String
+  authors           String
+  journal           String
+  year              Int
+  pmid              String?
+  doi               String?
+
+  // Study characteristics
+  studyType         StudyType
+  citationType      CitationType
+  sampleSize        Int?
+  population        String?         // e.g., "Moderate-to-severe plaque psoriasis"
+
+  // PDF storage (Supabase)
+  pdfPath           String          // Path in Supabase storage bucket
+  pdfFileName       String          // Original file name
+
+  // Extracted content (pre-processed at upload)
+  fullText          String          @db.Text
+  keyFindings       String          @db.Text  // Brief summary for quick reference
+
+  // Drug and indication associations
+  drugName          String          // Primary drug this citation is for
+  indications       IndicationType[] @default([])
+
+  // For biosimilar citations - reference to parent drug
+  referenceDrugName String?         // If biosimilar study, what's the reference product
+
+  // Metadata
+  uploadedAt        DateTime        @default(now())
+  uploadedBy        String?         // User who uploaded
+  reviewed          Boolean         @default(false)
+  reviewedBy        String?
+  reviewedAt        DateTime?
+
+  // Editable by users
+  notes             String?         @db.Text
+
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  @@index([drugName])
+  @@index([citationType])
+  @@index([studyType])
+  @@index([indications])
+  @@index([year])
+  @@index([reviewed])
+}

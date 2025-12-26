@@ -6,15 +6,7 @@ import { useState, useEffect } from 'react';
 import { Trash2, Database, BookOpen, Calendar, AlertCircle, CheckCircle, Eye, Building2 } from 'lucide-react';
 import PasswordProtection from '@/components/PasswordProtection';
 
-type DataTab = 'knowledge' | 'formulary' | 'uploads' | 'plans';
-
-interface KnowledgeDoc {
-  id: string;
-  fileName: string;
-  fileType: string;
-  uploadedAt: Date;
-  chunkCount: number;
-}
+type DataTab = 'formulary' | 'uploads' | 'plans';
 
 interface FormularyDataset {
   id: string;
@@ -46,8 +38,7 @@ interface InsurancePlan {
 }
 
 export default function DataManagementPage() {
-  const [activeTab, setActiveTab] = useState<DataTab>('knowledge');
-  const [knowledge, setKnowledge] = useState<KnowledgeDoc[]>([]);
+  const [activeTab, setActiveTab] = useState<DataTab>('formulary');
   const [formulary, setFormulary] = useState<FormularyDataset[]>([]);
   const [uploads, setUploads] = useState<UploadLog[]>([]);
   const [plans, setPlans] = useState<InsurancePlan[]>([]);
@@ -83,14 +74,14 @@ export default function DataManagementPage() {
           console.error(`Error fetching ${activeTab}:`, data.error);
           // Set empty array for the current tab
           switch (activeTab) {
-            case 'knowledge':
-              setKnowledge([]);
-              break;
             case 'formulary':
               setFormulary([]);
               break;
             case 'uploads':
               setUploads([]);
+              break;
+            case 'plans':
+              setPlans([]);
               break;
           }
           return;
@@ -99,14 +90,14 @@ export default function DataManagementPage() {
         // Ensure data is an array before setting state
         const arrayData = Array.isArray(data) ? data : [];
         switch (activeTab) {
-          case 'knowledge':
-            setKnowledge(arrayData);
-            break;
           case 'formulary':
             setFormulary(arrayData);
             break;
           case 'uploads':
             setUploads(arrayData);
+            break;
+          case 'plans':
+            setPlans(arrayData);
             break;
         }
       }
@@ -114,9 +105,6 @@ export default function DataManagementPage() {
       console.error('Error loading data:', error);
       // Reset current tab's data to empty array on network errors
       switch (activeTab) {
-        case 'knowledge':
-          setKnowledge([]);
-          break;
         case 'formulary':
           setFormulary([]);
           break;
@@ -187,7 +175,6 @@ export default function DataManagementPage() {
   };
 
   const tabs = [
-    { id: 'knowledge' as DataTab, label: 'Knowledge Base', icon: BookOpen, count: knowledge.length },
     { id: 'formulary' as DataTab, label: 'Formulary', icon: Database, count: formulary.length },
     { id: 'plans' as DataTab, label: 'Insurance Plans', icon: Building2, count: plans.length },
     { id: 'uploads' as DataTab, label: 'Upload History', icon: Calendar, count: uploads.length },
@@ -257,75 +244,6 @@ export default function DataManagementPage() {
           </div>
         ) : (
           <>
-            {/* Knowledge Base Table */}
-            {activeTab === 'knowledge' && (
-              <PasswordProtection storageKey="knowledge_authenticated">
-                <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          File Name
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Type
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Chunks
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Uploaded
-                        </th>
-                        <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Actions
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                      {knowledge.map((doc) => (
-                        <tr key={doc.id} className="hover:bg-gray-50">
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                            {doc.fileName}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {doc.fileType.toUpperCase()}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {doc.chunkCount} chunks
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {new Date(doc.uploadedAt).toLocaleDateString()}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                            <button
-                              onClick={() => handleDelete(doc.id, 'knowledge')}
-                              disabled={deleting === doc.id}
-                              className="text-red-600 hover:text-red-900 disabled:opacity-50 transition-all duration-150 hover:scale-110 active:scale-95"
-                            >
-                              {deleting === doc.id ? (
-                                <svg className="spinner w-4 h-4 inline" viewBox="0 0 24 24" fill="none">
-                                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                                </svg>
-                              ) : (
-                                <Trash2 className="w-4 h-4 inline" />
-                              )}
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                  {knowledge.length === 0 && (
-                    <div className="text-center py-12">
-                      <BookOpen className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                      <p className="text-gray-500">No knowledge base documents uploaded</p>
-                    </div>
-                  )}
-                </div>
-              </PasswordProtection>
-            )}
-
             {/* Formulary Datasets Table */}
             {activeTab === 'formulary' && (
               <div className="overflow-x-auto">

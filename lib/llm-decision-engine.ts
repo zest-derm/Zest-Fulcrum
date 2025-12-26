@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { prisma } from './db';
 import { normalizeToGeneric } from './drug-normalizer';
+import { formatCitationsForPrompt } from './citation-llm';
 import {
   Patient,
   CurrentBiologic,
@@ -128,6 +129,72 @@ async function retrieveStructuredFindings(
 
   // No findings found - return empty array (LLM will work without evidence context)
   return [];
+}
+
+/**
+ * Retrieve citations for drugs and indications
+ * Includes biosimilar inheritance - biosimilars inherit parent drug citations
+ */
+async function retrieveCitations(
+  drugNames: string[],
+  diagnosis: DiagnosisType
+): Promise<any[]> {
+  if (!drugNames || drugNames.length === 0) {
+    return [];
+  }
+
+  try {
+    // Map diagnosis to indication type
+    const indicationMap: Record<string, string> = {
+      'PSORIASIS': 'PSORIASIS',
+      'PSORIATIC_ARTHRITIS': 'PSORIATIC_ARTHRITIS',
+      'ATOPIC_DERMATITIS': 'ATOPIC_DERMATITIS',
+      'HIDRADENITIS_SUPPURATIVA': 'HIDRADENITIS_SUPPURATIVA',
+      'OTHER': 'OTHER',
+    };
+    const indication = indicationMap[diagnosis] || 'OTHER';
+
+    // Get all drugs from formulary to resolve biosimilar relationships
+    const allDrugs = await prisma.formularyDrug.findMany({
+      where: {
+        drugName: { in: drugNames },
+      },
+      select: {
+        drugName: true,
+        biosimilarOf: true,
+      },
+    });
+
+    // Build list of drugs to query (including parent drugs for biosimilars)
+    const drugsToQuery = new Set<string>();
+    for (const drug of allDrugs) {
+      drugsToQuery.add(drug.drugName);
+      if (drug.biosimilarOf) {
+        drugsToQuery.add(drug.biosimilarOf);
+      }
+    }
+
+    // Query citations
+    const citations = await prisma.citation.findMany({
+      where: {
+        AND: [
+          { drugName: { in: Array.from(drugsToQuery) } },
+          { indications: { has: indication } },
+          { reviewed: true }, // Only use reviewed citations
+        ],
+      },
+      orderBy: [
+        { citationType: 'asc' },
+        { year: 'desc' },
+      ],
+      take: 10, // Limit to top 10 most relevant citations
+    });
+
+    return citations;
+  } catch (error) {
+    console.error('Error retrieving citations:', error);
+    return [];
+  }
 }
 
 /**
@@ -477,6 +544,7 @@ async function getLLMRecommendationSuggestions(
   currentDrug: string | null,
   currentBiologic: any | null,
   evidence: string[],
+  citations: any[],
   formularyOptions: FormularyDrug[],
   currentFormularyDrug: FormularyDrug | null,
   contraindications: Contraindication[],
@@ -528,6 +596,15 @@ async function getLLMRecommendationSuggestions(
     ? evidence.join('\n\n')
     : 'No specific evidence retrieved from knowledge base.';
 
+  // Format citations for prompt
+  const citationsText = citations.length > 0
+    ? formatCitationsForPrompt(
+        currentBrandName || 'Available Drugs',
+        [assessment.diagnosis],
+        citations
+      )
+    : 'No peer-reviewed citations available yet. Recommendations based on clinical guidelines and formulary structure.';
+
   const prompt = `You are a clinical decision support AI for biologic selection. Your task is to recommend the next best biologic from the formulary for this patient.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -552,7 +629,12 @@ ${formularyText}
 ⚠️ CRITICAL PRIORITY: Cost savings is THE goal. ALWAYS prioritize Tier ${lowestTierInFormulary} (lowest tier) first.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-CLINICAL EVIDENCE (for reference only)
+PEER-REVIEWED CLINICAL CITATIONS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${citationsText}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ADDITIONAL CLINICAL EVIDENCE (for reference only)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ${evidenceText}
 
@@ -881,6 +963,11 @@ export async function generateLLMRecommendations(
   const availableFormularyDrugs = filterFailedTherapies(safeFormularyDrugs, assessment.failedTherapies || []);
   console.log(`Filtered formulary: ${patientWithFormulary.plan.formularyDrugs.length} total → ${diagnosisAppropriateDrugs.length} for ${assessment.diagnosis} → ${safeFormularyDrugs.length} safe, ${contraindicatedDrugs.length} contraindicated → ${availableFormularyDrugs.length} after excluding failed therapies`);
 
+  // Retrieve citations for available drugs
+  const availableDrugNames = availableFormularyDrugs.map(d => d.drugName);
+  const citations = await retrieveCitations(availableDrugNames, assessment.diagnosis);
+  console.log(`Retrieved ${citations.length} citations for ${availableDrugNames.length} drugs`);
+
   // Sort available formulary drugs (after excluding failed therapies) to prioritize lower tiers
   const sortedFormularyDrugs = [...availableFormularyDrugs].sort((a, b) => {
     // Sort by tier first (lower is better)
@@ -899,6 +986,7 @@ export async function generateLLMRecommendations(
     genericDrugName,
     currentBiologic,
     evidence,
+    citations,
     sortedFormularyDrugs,
     currentFormularyDrug || null,
     patientWithFormulary.contraindications,
