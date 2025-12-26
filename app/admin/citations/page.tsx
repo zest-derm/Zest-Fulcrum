@@ -96,6 +96,11 @@ export default function CitationsPage() {
   const [editFormData, setEditFormData] = useState<Partial<Citation> | null>(null);
   const [uploadStatus, setUploadStatus] = useState<{ success: boolean; message: string } | null>(null);
   const [notes, setNotes] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterDrug, setFilterDrug] = useState('');
+  const [filterIndication, setFilterIndication] = useState('');
+  const [sortBy, setSortBy] = useState<'year' | 'type' | null>('year');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
   useEffect(() => {
     loadCitations();
@@ -601,49 +606,158 @@ export default function CitationsPage() {
 
         {/* Citations Table */}
         <div className="card">
-          <h2 className="mb-4">All Citations ({citations.length})</h2>
+          <div className="mb-6">
+            <h2 className="mb-4">All Citations ({citations.length})</h2>
 
-          {citations.length === 0 ? (
-            <div className="text-center py-12">
-              <FileText className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-gray-600 mb-2">No Citations Yet</h3>
-              <p className="text-sm text-gray-500">
-                Upload your first PDF to get started
-              </p>
+            {/* Search and Filter */}
+            <div className="grid md:grid-cols-4 gap-4 mb-4">
+              <div className="md:col-span-2">
+                <input
+                  type="text"
+                  placeholder="Search by title or authors..."
+                  className="input w-full"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+              </div>
+              <div>
+                <select
+                  className="input w-full"
+                  value={filterDrug}
+                  onChange={(e) => setFilterDrug(e.target.value)}
+                >
+                  <option value="">All Drugs</option>
+                  {Array.from(new Set(citations.map(c => c.drugName))).sort().map(drug => (
+                    <option key={drug} value={drug}>{drug}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <select
+                  className="input w-full"
+                  value={filterIndication}
+                  onChange={(e) => setFilterIndication(e.target.value)}
+                >
+                  <option value="">All Indications</option>
+                  {INDICATION_OPTIONS.map(ind => (
+                    <option key={ind.value} value={ind.value}>{ind.label}</option>
+                  ))}
+                </select>
+              </div>
             </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Drug
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Indications
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Title
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Authors
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Year
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Type
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      PDF
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {citations.map((citation) => (
+          </div>
+
+          {(() => {
+            // Filter and sort citations
+            let filtered = citations.filter(citation => {
+              // Text search
+              if (searchQuery) {
+                const query = searchQuery.toLowerCase();
+                const matchTitle = citation.title.toLowerCase().includes(query);
+                const matchAuthors = citation.authors.toLowerCase().includes(query);
+                if (!matchTitle && !matchAuthors) return false;
+              }
+
+              // Drug filter
+              if (filterDrug && citation.drugName !== filterDrug) return false;
+
+              // Indication filter
+              if (filterIndication && !citation.indications.includes(filterIndication as any)) return false;
+
+              return true;
+            });
+
+            // Sort
+            if (sortBy === 'year') {
+              filtered.sort((a, b) => sortOrder === 'desc' ? b.year - a.year : a.year - b.year);
+            } else if (sortBy === 'type') {
+              filtered.sort((a, b) => {
+                const compare = a.citationType.localeCompare(b.citationType);
+                return sortOrder === 'desc' ? -compare : compare;
+              });
+            }
+
+            if (filtered.length === 0) {
+              return (
+                <div className="text-center py-12">
+                  <FileText className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                  <h3 className="text-gray-600 mb-2">No Citations Found</h3>
+                  <p className="text-sm text-gray-500">
+                    {citations.length === 0 ? 'Upload your first PDF to get started' : 'Try adjusting your search or filters'}
+                  </p>
+                </div>
+              );
+            }
+
+            return (
+              <div className="overflow-x-auto" style={{ scrollbarWidth: 'thin', scrollbarColor: '#CBD5E0 #F7FAFC' }}>
+                <style jsx>{`
+                  div::-webkit-scrollbar {
+                    height: 12px;
+                  }
+                  div::-webkit-scrollbar-track {
+                    background: #F7FAFC;
+                    border-radius: 6px;
+                  }
+                  div::-webkit-scrollbar-thumb {
+                    background: #CBD5E0;
+                    border-radius: 6px;
+                  }
+                  div::-webkit-scrollbar-thumb:hover {
+                    background: #A0AEC0;
+                  }
+                `}</style>
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Drug
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Indications
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Title
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Authors
+                      </th>
+                      <th
+                        className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                        onClick={() => {
+                          if (sortBy === 'year') {
+                            setSortOrder(sortOrder === 'desc' ? 'asc' : 'desc');
+                          } else {
+                            setSortBy('year');
+                            setSortOrder('desc');
+                          }
+                        }}
+                      >
+                        Year {sortBy === 'year' && (sortOrder === 'desc' ? '↓' : '↑')}
+                      </th>
+                      <th
+                        className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                        onClick={() => {
+                          if (sortBy === 'type') {
+                            setSortOrder(sortOrder === 'desc' ? 'asc' : 'desc');
+                          } else {
+                            setSortBy('type');
+                            setSortOrder('asc');
+                          }
+                        }}
+                      >
+                        Type {sortBy === 'type' && (sortOrder === 'desc' ? '↓' : '↑')}
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        PDF
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Actions
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {filtered.map((citation) => (
                     <tr key={citation.id} className="hover:bg-gray-50">
                       <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                         {editingId === citation.id ? (
@@ -729,11 +843,12 @@ export default function CitationsPage() {
                         )}
                       </td>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            );
+          })()}
         </div>
       </div>
     </PasswordProtection>
