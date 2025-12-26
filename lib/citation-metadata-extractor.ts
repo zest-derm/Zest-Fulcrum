@@ -51,9 +51,9 @@ Extract the following information and return as JSON:
 8. citationType - One of: EFFICACY, SAFETY, BIOSIMILAR_EQUIVALENCE, HEAD_TO_HEAD, LONG_TERM_OUTCOMES, PHARMACOKINETICS, REAL_WORLD_EVIDENCE
 9. sampleSize - Number of participants (or null)
 10. population - Study population description (e.g., "Moderate-to-severe plaque psoriasis")
-11. drugName - Primary drug studied (brand name preferred)
+11. drugName - Primary drug being studied (brand name preferred). For head-to-head trials, use the drug that showed superior efficacy or the newer/focus drug (not the comparator). For example, if Skyrizi vs Stelara and Skyrizi won, use "Skyrizi".
 12. indications - Array of relevant conditions from: PSORIASIS, PSORIATIC_ARTHRITIS, ATOPIC_DERMATITIS, HIDRADENITIS_SUPPURATIVA, CROHNS_DISEASE, ULCERATIVE_COLITIS, RHEUMATOID_ARTHRITIS, ANKYLOSING_SPONDYLITIS, OTHER
-13. referenceDrugName - If biosimilar study, what drug is it compared to (or null)
+13. referenceDrugName - For head-to-head or biosimilar studies, the comparison drug (e.g., "Stelara" if comparing Skyrizi vs Stelara). Otherwise null.
 14. keyFindings - 3-5 sentence summary of key clinical findings
 
 Return ONLY valid JSON in this exact format:
