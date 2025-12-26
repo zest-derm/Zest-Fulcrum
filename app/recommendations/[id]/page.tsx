@@ -380,22 +380,6 @@ export default async function RecommendationsPage({ params }: PageProps) {
         </div>
       </div>
 
-      {/* Formulary Reference Banner */}
-      <div className="card mb-6 bg-blue-50 border-blue-200">
-        <div className="flex items-start gap-3">
-          <div className="flex-shrink-0 w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center">
-            <FileText className="h-5 w-5" />
-          </div>
-          <div className="flex-1">
-            <h3 className="font-semibold text-blue-900 mb-1">Formulary Reference</h3>
-            <p className="text-sm text-blue-800">
-              The following recommendations are based on the <strong>{formularyReference}</strong> formulary.
-              All tier placements, cost calculations, and coverage determinations reflect this specific formulary version.
-            </p>
-          </div>
-        </div>
-      </div>
-
       {/* Assessment Info */}
       {quadrantLabel !== 'N/A' && (
         <div className="card mb-6">
@@ -496,6 +480,14 @@ export default async function RecommendationsPage({ params }: PageProps) {
                     </p>
                   </div>
                 </div>
+              </div>
+
+              {/* Formulary Reference */}
+              <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-xs text-blue-800">
+                  <strong>Formulary Reference:</strong> This recommendation is based on the <strong>{formularyReference}</strong> formulary.
+                  Tier placement and cost calculations reflect this specific formulary version.
+                </p>
               </div>
 
               {isContraindicated && rec.contraindicationReason && (
