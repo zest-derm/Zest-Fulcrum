@@ -8,7 +8,7 @@ import PasswordProtection from '@/components/PasswordProtection';
 
 // Comprehensive list of biologics for dermatology (originals + biosimilars)
 const BIOLOGIC_DRUGS = [
-  'Humira', 'Enbrel', 'Remicade', 'Cimzia', 'Simponi', 'Stelara',
+  'Humira', 'Enbrel', 'Remicade', 'Cimzia', 'Simponi',
   'Amjevita', 'Cyltezo', 'Hadlima', 'Hyrimoz', 'Yusimry', 'Abrilada', 'Idacio',
   'Erelzi', 'Eticovo',
   'Avsola', 'Inflectra', 'Ixifi', 'Renflexis', 'Zymfentra',
