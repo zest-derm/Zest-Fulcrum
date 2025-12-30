@@ -10,6 +10,20 @@ import {
 
 const prisma = new PrismaClient();
 
+// Configure API route to accept larger files (up to 50MB)
+export const runtime = 'nodejs';
+export const maxDuration = 300; // 5 minutes max
+export const dynamic = 'force-dynamic';
+
+// Increase body size limit for PDF uploads
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: '50mb',
+    },
+  },
+};
+
 /**
  * POST /api/citations/extract-review
  * Upload a comprehensive review (Cochrane, meta-analysis) and extract all individual studies
