@@ -677,11 +677,15 @@ Psoriasis efficacy hierarchy:
 CITATION REQUIREMENTS - CRITICAL
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-🔬 ALL CLINICAL CLAIMS MUST BE CITED:
-- ANY statement about efficacy (e.g., "higher efficacy", "PASI90 response") MUST include citation
-- ANY safety/adverse event claims MUST include citation
-- Include specific data points (e.g., "PASI90 of 75% [1]", "superior efficacy (PASI 90: 84% vs 54%) [2]")
-- Use [1], [2], [3] notation in rationale text
+🔬 WHEN TO CITE (citations are NOT always required):
+- ✅ CITE: Specific efficacy data (e.g., "PASI90 of 75% [1]", "superior efficacy [1]")
+- ✅ CITE: Safety/adverse event claims (e.g., "favorable safety profile [2]")
+- ✅ CITE: Comparative statements (e.g., "more effective than X [3]")
+- ❌ NO CITATION NEEDED: Tier/cost statements (e.g., "Tier 1 option for cost savings")
+- ❌ NO CITATION NEEDED: General mechanism statements (e.g., "IL-23 inhibitor")
+- ❌ NO CITATION NEEDED: FDA-approved indications (e.g., "appropriate for psoriatic arthritis")
+
+If you make NO clinical claims requiring evidence, you can omit citations entirely.
 
 📚 CITATION SOURCES (in priority order):
 1. **Database citations** (provided above): Use these FIRST if relevant to your claim
@@ -689,7 +693,7 @@ CITATION REQUIREMENTS - CRITICAL
    - ONLY cite randomized controlled trials (RCTs) or systematic reviews/meta-analyses
    - ONLY cite from high-quality journals: JAAD, JID, Lancet, NEJM, BJD, JAMA Dermatology
    - Must include: Title, First Author et al., Journal, Year, and PMID if available
-   - Example: "Study of IL-23 inhibitor efficacy in moderate-to-severe plaque psoriasis, Gordon et al., NEJM, 2016"
+   - Example: "Efficacy of guselkumab in psoriasis, Blauvelt et al., JAAD, 2017"
 
 ⚠️ ANTI-HALLUCINATION RULES:
 - If you cite from your knowledge, the study MUST be real and verifiable
@@ -714,18 +718,20 @@ For EACH recommendation provide:
 5. **Rationale**: Explain why this drug is recommended:
    - Mention tier and cost savings if applicable
    - Mention comorbidity match if applicable (e.g., "IL-17 inhibitor appropriate for psoriatic arthritis")
-   - Mention efficacy profile WITH CITATIONS [1], [2], etc.
+   - Mention efficacy profile, WITH CITATIONS [1], [2] if making specific claims
    - Keep concise (2-3 sentences)
-   - MUST cite any clinical claims with specific data points
+   - If you make specific clinical claims, you MUST cite them
 6. **Monitoring plan**: Standard follow-up (e.g., "Assess efficacy at 12-16 weeks")
 7. **Rank**: 1, 2, or 3
-8. **Citations**: Array of citation objects for this recommendation (numbered 1, 2, 3... within recommendation)
+8. **Citations** (OPTIONAL): Only include if you made clinical claims requiring evidence
+   - Array of citation objects (numbered 1, 2, 3... within recommendation)
+   - Omit this field entirely if no citations are needed
 
 ⚠️ NEVER output placeholder text like "No options available"
 ⚠️ NEVER recommend the current drug
 ⚠️ NEVER recommend same drug twice
 ⚠️ All recommendations must be type "INITIATE_BIOLOGIC"
-⚠️ NEVER make clinical claims without citing sources
+⚠️ If you make specific clinical claims (efficacy data, safety), you MUST cite them or omit the claim
 
 Return ONLY valid JSON with this exact structure:
 {
@@ -735,10 +741,10 @@ Return ONLY valid JSON with this exact structure:
       "drugName": "string",
       "newDose": "string",
       "newFrequency": "string",
-      "rationale": "string (with inline [1], [2] citations)",
+      "rationale": "string (with inline [1], [2] citations if applicable)",
       "monitoringPlan": "string",
       "rank": number,
-      "citations": [
+      "citations": [  // OPTIONAL - only include if you made clinical claims
         {
           "citationNumber": 1,
           "title": "Full study title",
@@ -753,6 +759,35 @@ Return ONLY valid JSON with this exact structure:
       ]
     }
   ]
+}
+
+Example WITHOUT citations (tier/cost only):
+{
+  "type": "INITIATE_BIOLOGIC",
+  "drugName": "Tremfya",
+  "rationale": "Tier 1 option for cost savings. IL-23 inhibitor appropriate for psoriatic arthritis.",
+  "rank": 1
+  // No citations field needed
+}
+
+Example WITH citations (specific efficacy claims):
+{
+  "type": "INITIATE_BIOLOGIC",
+  "drugName": "Tremfya",
+  "rationale": "Tier 1 option with superior efficacy. Guselkumab demonstrated PASI 90 of 73% [1].",
+  "rank": 1,
+  "citations": [
+    {
+      "citationNumber": 1,
+      "title": "Efficacy of guselkumab in psoriasis",
+      "authors": "Blauvelt et al.",
+      "year": 2017,
+      "journal": "JAAD",
+      "pmid": "28259441",
+      "specificFinding": "PASI90 response of 73.3% at week 24",
+      "source": "database"
+    }
+  ]
 }`;
 
   try {
@@ -761,7 +796,7 @@ Return ONLY valid JSON with this exact structure:
       model: 'claude-sonnet-4-5-20250929',
       max_tokens: 4096,
       temperature: 0.4,
-      system: 'You are a clinical decision support AI for biologic selection. Recommend the next best biologic from the formulary, prioritizing lowest tier and matching comorbidities. CRITICAL: You MUST include a citations array for each recommendation with full metadata (title, authors, year, journal, pmid, doi, specificFinding, source). Always respond with valid JSON only, no other text.',
+      system: 'You are a clinical decision support AI for biologic selection. Recommend the next best biologic from the formulary, prioritizing lowest tier and matching comorbidities. IMPORTANT: If you make specific clinical claims (efficacy data, safety statements), you MUST include a citations array with full metadata. Citations are OPTIONAL if you only discuss tier/cost/indications. Always respond with valid JSON only, no other text.',
       messages: [{ role: 'user', content: prompt }],
     });
 
