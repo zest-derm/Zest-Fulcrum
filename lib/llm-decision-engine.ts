@@ -678,15 +678,27 @@ Psoriasis efficacy hierarchy:
 CITATION REQUIREMENTS - CRITICAL
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-🔬 WHEN TO CITE (citations are NOT always required):
-- ✅ CITE: Specific efficacy data (e.g., "PASI90 of 75% [1]", "superior efficacy [1]")
-- ✅ CITE: Safety/adverse event claims (e.g., "favorable safety profile [2]")
-- ✅ CITE: Comparative statements (e.g., "more effective than X [3]")
-- ❌ NO CITATION NEEDED: Tier/cost statements (e.g., "Tier 1 option for cost savings")
-- ❌ NO CITATION NEEDED: General mechanism statements (e.g., "IL-23 inhibitor")
-- ❌ NO CITATION NEEDED: FDA-approved indications (e.g., "appropriate for psoriatic arthritis")
+🔬 WHEN TO CITE - BE STRICT:
+✅ MUST CITE (or omit the claim):
+- ANY efficacy statement: "high efficacy", "superior efficacy", "highest efficacy class"
+- Specific efficacy data: "PASI90 of 75%"
+- Comparative claims: "more effective than X", "equivalent to X"
+- Outcome claims: "durable responses", "sustained efficacy"
+- Safety claims: "favorable safety profile", "well-tolerated"
+- Superlatives: "highest", "best", "most effective"
 
-If you make NO clinical claims requiring evidence, you can omit citations entirely.
+❌ NO CITATION NEEDED:
+- Tier/cost: "Tier 1 option for cost savings"
+- Drug class: "IL-23 inhibitor", "TNF inhibitor"
+- FDA indications: "appropriate for psoriatic arthritis" (if FDA-approved)
+- Dosing facts: "convenient quarterly dosing", "every 8 weeks"
+
+⚠️ CRITICAL RULE: If you mention efficacy, outcomes, or safety in ANY way (even qualitatively like "high" or "durable"), you MUST either:
+1. Cite it with [1], [2], etc., OR
+2. Provide specific data with citation (e.g., "PASI 90 of 75% [1]"), OR
+3. Don't make the claim at all
+
+If you make NO efficacy/safety/outcome claims, citations can be omitted entirely.
 
 📚 CITATION SOURCES (in priority order):
 1. **Database citations** (provided above): Use these FIRST if relevant to your claim
@@ -717,11 +729,11 @@ For EACH recommendation provide:
 3. **New dose**: FDA-approved specific dose (e.g., "300 mg", "80 mg initial then 40 mg") - NEVER use "Per label"
 4. **New frequency**: FDA-approved specific frequency (e.g., "every 4 weeks after loading") - NEVER use "Per label"
 5. **Rationale**: Explain why this drug is recommended:
-   - Mention tier and cost savings if applicable
-   - Mention comorbidity match if applicable (e.g., "IL-17 inhibitor appropriate for psoriatic arthritis")
-   - Mention efficacy profile, WITH CITATIONS [1], [2] if making specific claims
+   - Mention tier and cost savings if applicable (no citation needed)
+   - Mention comorbidity match if applicable (no citation needed)
+   - If mentioning efficacy/outcomes/safety: MUST cite [1], [2] or omit the claim
    - Keep concise (2-3 sentences)
-   - If you make specific clinical claims, you MUST cite them
+   - AVOID vague terms like "high efficacy" without data - either cite it or be specific
 6. **Monitoring plan**: Standard follow-up (e.g., "Assess efficacy at 12-16 weeks")
 7. **Rank**: 1, 2, or 3
 8. **Citations** (OPTIONAL): Only include if you made clinical claims requiring evidence
@@ -732,7 +744,8 @@ For EACH recommendation provide:
 ⚠️ NEVER recommend the current drug
 ⚠️ NEVER recommend same drug twice
 ⚠️ All recommendations must be type "INITIATE_BIOLOGIC"
-⚠️ If you make specific clinical claims (efficacy data, safety), you MUST cite them or omit the claim
+⚠️ NEVER use words like "high efficacy", "superior", "durable", "equivalent", "favorable" without citations
+⚠️ If you can't cite an efficacy/safety claim, DON'T MAKE IT - stick to tier/cost/indication only
 
 Return ONLY valid JSON with this exact structure:
 {
@@ -762,13 +775,19 @@ Return ONLY valid JSON with this exact structure:
   ]
 }
 
-Example WITHOUT citations (tier/cost only):
+Example WITHOUT citations (tier/cost/indication only - NO efficacy claims):
 {
   "type": "INITIATE_BIOLOGIC",
   "drugName": "Tremfya",
-  "rationale": "Tier 1 option for cost savings. IL-23 inhibitor appropriate for psoriatic arthritis.",
+  "rationale": "Tier 1 option providing maximum cost savings. IL-23 inhibitor appropriate for psoriatic arthritis with convenient quarterly dosing.",
   "rank": 1
-  // No citations field needed
+  // No citations field - only tier, mechanism, indication, dosing mentioned
+}
+
+WRONG - Don't do this (efficacy claims without citations):
+{
+  "rationale": "Tier 1 option. IL-23 inhibitor with high efficacy and durable responses."
+  // ❌ WRONG: "high efficacy" and "durable responses" need citations or should be omitted
 }
 
 Example WITH citations (specific efficacy claims):
