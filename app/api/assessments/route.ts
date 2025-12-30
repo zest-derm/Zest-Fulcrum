@@ -132,6 +132,7 @@ export async function POST(request: NextRequest) {
         if (rec.tier !== undefined) data.tier = rec.tier;
         if (rec.requiresPA !== undefined) data.requiresPA = rec.requiresPA;
         if (rec.contraindicationReason !== undefined) data.contraindicationReason = rec.contraindicationReason;
+        if (rec.citations !== undefined) data.citations = rec.citations;
 
         return prisma.recommendation.create({ data });
       })
