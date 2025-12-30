@@ -23,7 +23,11 @@ interface CitationReferencesProps {
 export default function CitationReferences({ citations, recommendationRank }: CitationReferencesProps) {
   const [addingToDatabase, setAddingToDatabase] = useState<number | null>(null);
 
+  // Debug logging
+  console.log(`CitationReferences for rank ${recommendationRank}:`, citations);
+
   if (!citations || citations.length === 0) {
+    console.log(`No citations to display for rank ${recommendationRank}`);
     return null;
   }
 

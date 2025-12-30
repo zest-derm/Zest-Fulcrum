@@ -761,7 +761,7 @@ Return ONLY valid JSON with this exact structure:
       model: 'claude-sonnet-4-5-20250929',
       max_tokens: 4096,
       temperature: 0.4,
-      system: 'You are a clinical decision support AI for biologic selection. Recommend the next best biologic from the formulary, prioritizing lowest tier and matching comorbidities. Always respond with valid JSON only, no other text.',
+      system: 'You are a clinical decision support AI for biologic selection. Recommend the next best biologic from the formulary, prioritizing lowest tier and matching comorbidities. CRITICAL: You MUST include a citations array for each recommendation with full metadata (title, authors, year, journal, pmid, doi, specificFinding, source). Always respond with valid JSON only, no other text.',
       messages: [{ role: 'user', content: prompt }],
     });
 
@@ -775,9 +775,14 @@ Return ONLY valid JSON with this exact structure:
     const recommendations = Array.isArray(parsed) ? parsed : (parsed.recommendations || []);
 
     if (!Array.isArray(recommendations) || recommendations.length === 0) {
-      console.error('LLM returned no recommendations, response was:', content);
+      console.error('LLM returned no recommendations, response was:', rawContent);
       throw new Error('LLM returned no recommendations');
     }
+
+    // Debug: Check if citations are present in the response
+    recommendations.forEach((rec, idx) => {
+      console.log(`Recommendation ${idx + 1} citations:`, rec.citations ? `${rec.citations.length} citations` : 'NO CITATIONS');
+    });
 
     return recommendations as LLMRecommendation[];
   } catch (error) {
