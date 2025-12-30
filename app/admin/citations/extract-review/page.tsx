@@ -6,6 +6,7 @@ import { useState, useEffect } from 'react';
 import { Upload, Loader2, CheckCircle, AlertCircle, FileText, ArrowLeft, Download } from 'lucide-react';
 import Link from 'next/link';
 import PasswordProtection from '@/components/PasswordProtection';
+import { supabase, CITATIONS_BUCKET } from '@/lib/supabase';
 
 interface ExtractionJob {
   id: string;
@@ -88,12 +89,29 @@ export default function ExtractReviewPage() {
     setUploadError(null);
 
     try {
-      const formData = new FormData();
-      formData.append('pdf', file);
+      // Step 1: Upload PDF directly to Supabase storage (bypasses Vercel limits)
+      const fileName = `${Date.now()}-${file.name}`;
+      const filePath = `comprehensive-reviews/${fileName}`;
 
+      const { error: uploadError } = await supabase.storage
+        .from(CITATIONS_BUCKET)
+        .upload(filePath, file, {
+          contentType: 'application/pdf',
+          upsert: false,
+        });
+
+      if (uploadError) {
+        throw new Error(`Failed to upload PDF: ${uploadError.message}`);
+      }
+
+      // Step 2: Trigger extraction with just the storage path
       const res = await fetch('/api/citations/extract-review', {
         method: 'POST',
-        body: formData,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          pdfPath: filePath,
+          pdfFileName: file.name,
+        }),
       });
 
       if (res.ok) {

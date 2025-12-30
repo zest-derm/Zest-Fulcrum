@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
-import { uploadCitationPdf } from '@/lib/supabase';
+import { supabaseAdmin, CITATIONS_BUCKET } from '@/lib/supabase';
 import { extractTextFromPdf } from '@/lib/pdf-utils';
 import {
   analyzeReviewDocument,
@@ -17,10 +17,10 @@ export const dynamic = 'force-dynamic';
 
 /**
  * POST /api/citations/extract-review
- * Upload a comprehensive review (Cochrane, meta-analysis) and extract all individual studies
+ * Start extraction of a comprehensive review from Supabase storage
  *
  * This is a long-running operation that:
- * 1. Uploads the PDF
+ * 1. Downloads PDF from Supabase storage
  * 2. Extracts full text
  * 3. Analyzes document structure (Stage 1)
  * 4. Extracts individual studies (Stage 2)
@@ -28,43 +28,30 @@ export const dynamic = 'force-dynamic';
  */
 export async function POST(request: NextRequest) {
   try {
-    const formData = await request.formData();
-    const pdf = formData.get('pdf') as File;
+    const body = await request.json();
+    const { pdfPath, pdfFileName } = body;
 
-    if (!pdf) {
+    if (!pdfPath || !pdfFileName) {
       return NextResponse.json(
-        { error: 'PDF file is required' },
+        { error: 'pdfPath and pdfFileName are required' },
         { status: 400 }
       );
     }
 
-    // Step 1: Upload PDF to Supabase
-    let pdfPath: string;
-    try {
-      const uploadResult = await uploadCitationPdf(pdf, 'comprehensive-review');
-      pdfPath = uploadResult.path;
-    } catch (error: any) {
-      console.error('Error uploading PDF:', error);
-      return NextResponse.json(
-        { error: `Failed to upload PDF: ${error.message}` },
-        { status: 500 }
-      );
-    }
-
-    // Step 2: Create extraction job
+    // Create extraction job
     const job = await prisma.reviewExtractionJob.create({
       data: {
         pdfPath,
-        pdfFileName: pdf.name,
+        pdfFileName,
         status: 'PENDING',
         uploadedBy: 'system', // TODO: Add user tracking
       },
     });
 
-    // Step 3: Start extraction process asynchronously
+    // Start extraction process asynchronously
     // In production, this would be a background job (queue, worker, etc.)
     // For now, we'll use a simple async process
-    processReviewExtraction(job.id, pdf).catch((error) => {
+    processReviewExtraction(job.id, pdfPath).catch((error) => {
       console.error(`Error processing review ${job.id}:`, error);
       prisma.reviewExtractionJob.update({
         where: { id: job.id },
@@ -94,7 +81,7 @@ export async function POST(request: NextRequest) {
 /**
  * Background process to extract all studies from review
  */
-async function processReviewExtraction(jobId: string, pdf: File) {
+async function processReviewExtraction(jobId: string, pdfPath: string) {
   try {
     // Update status to ANALYZING_DOCUMENT
     await prisma.reviewExtractionJob.update({
@@ -105,9 +92,24 @@ async function processReviewExtraction(jobId: string, pdf: File) {
       },
     });
 
+    // Download PDF from Supabase storage
+    console.log(`[Job ${jobId}] Downloading PDF from storage...`);
+    const { data: fileData, error: downloadError } = await supabaseAdmin.storage
+      .from(CITATIONS_BUCKET)
+      .download(pdfPath);
+
+    if (downloadError || !fileData) {
+      throw new Error(`Failed to download PDF: ${downloadError?.message}`);
+    }
+
+    // Convert Blob to File
+    const file = new File([fileData], pdfPath.split('/').pop() || 'review.pdf', {
+      type: 'application/pdf',
+    });
+
     // Extract full text from PDF
     console.log(`[Job ${jobId}] Extracting text from PDF...`);
-    const fullText = await extractTextFromPdf(pdf);
+    const fullText = await extractTextFromPdf(file);
 
     // Stage 1: Analyze document structure
     console.log(`[Job ${jobId}] Analyzing document structure...`);
