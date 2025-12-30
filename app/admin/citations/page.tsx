@@ -163,7 +163,7 @@ export default function CitationsPage() {
     try {
       const formData = new FormData();
       formData.append('pdf', selectedFile);
-      formData.append('drugName', extractedData.metadata.drugName);
+      formData.append('drugName', JSON.stringify(extractedData.metadata.drugName));
       formData.append('indications', JSON.stringify(extractedData.metadata.indications));
       formData.append('title', extractedData.metadata.title);
       formData.append('authors', extractedData.metadata.authors);
@@ -359,20 +359,33 @@ export default function CitationsPage() {
 
               <div className="grid md:grid-cols-2 gap-6">
                 <div>
-                  <label className="label">Drug Name *</label>
-                  <select
-                    className="input w-full"
-                    value={extractedData.metadata.drugName}
-                    onChange={(e) => setExtractedData({
-                      ...extractedData,
-                      metadata: { ...extractedData.metadata, drugName: e.target.value }
-                    })}
-                  >
-                    <option value="">Select drug...</option>
-                    {BIOLOGIC_DRUGS.map(drug => (
-                      <option key={drug} value={drug}>{drug}</option>
-                    ))}
-                  </select>
+                  <label className="label">Drug Names * (Select all that apply)</label>
+                  <div className="border rounded-lg p-4 max-h-60 overflow-y-auto">
+                    <div className="grid grid-cols-2 gap-2">
+                      {BIOLOGIC_DRUGS.map(drug => (
+                        <label key={drug} className="flex items-center space-x-2 cursor-pointer hover:bg-gray-50 p-1 rounded">
+                          <input
+                            type="checkbox"
+                            checked={extractedData.metadata.drugName.includes(drug)}
+                            onChange={(e) => {
+                              const newDrugs = e.target.checked
+                                ? [...extractedData.metadata.drugName, drug]
+                                : extractedData.metadata.drugName.filter(d => d !== drug);
+                              setExtractedData({
+                                ...extractedData,
+                                metadata: { ...extractedData.metadata, drugName: newDrugs }
+                              });
+                            }}
+                            className="rounded border-gray-300"
+                          />
+                          <span className="text-sm">{drug}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                  {extractedData.metadata.drugName.length === 0 && (
+                    <p className="text-xs text-red-600 mt-1">Please select at least one drug</p>
+                  )}
                 </div>
 
                 <div>
@@ -627,7 +640,7 @@ export default function CitationsPage() {
                   onChange={(e) => setFilterDrug(e.target.value)}
                 >
                   <option value="">All Drugs</option>
-                  {Array.from(new Set(citations.map(c => c.drugName))).sort().map(drug => (
+                  {Array.from(new Set(citations.flatMap(c => c.drugName))).sort().map(drug => (
                     <option key={drug} value={drug}>{drug}</option>
                   ))}
                 </select>
@@ -659,7 +672,7 @@ export default function CitationsPage() {
               }
 
               // Drug filter
-              if (filterDrug && citation.drugName !== filterDrug) return false;
+              if (filterDrug && !citation.drugName.includes(filterDrug)) return false;
 
               // Indication filter
               if (filterIndication && !citation.indications.includes(filterIndication as any)) return false;
@@ -759,16 +772,37 @@ export default function CitationsPage() {
                   <tbody className="bg-white divide-y divide-gray-200">
                     {filtered.map((citation) => (
                     <tr key={citation.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                      <td className="px-4 py-4 text-sm font-medium text-gray-900">
                         {editingId === citation.id ? (
-                          <input
-                            type="text"
-                            className="input w-full text-sm"
-                            value={editFormData?.drugName || ''}
-                            onChange={(e) => setEditFormData({ ...editFormData, drugName: e.target.value })}
-                          />
+                          <div className="border rounded-lg p-2 max-h-40 overflow-y-auto">
+                            <div className="grid grid-cols-1 gap-2">
+                              {BIOLOGIC_DRUGS.map(drug => (
+                                <label key={drug} className="flex items-center space-x-2 cursor-pointer hover:bg-gray-50 p-1 rounded">
+                                  <input
+                                    type="checkbox"
+                                    checked={editFormData?.drugName?.includes(drug)}
+                                    onChange={(e) => {
+                                      const currentDrugs = editFormData?.drugName || [];
+                                      const newDrugs = e.target.checked
+                                        ? [...currentDrugs, drug]
+                                        : currentDrugs.filter(d => d !== drug);
+                                      setEditFormData({ ...editFormData, drugName: newDrugs });
+                                    }}
+                                    className="rounded border-gray-300"
+                                  />
+                                  <span className="text-sm">{drug}</span>
+                                </label>
+                              ))}
+                            </div>
+                          </div>
                         ) : (
-                          citation.drugName
+                          <div className="flex flex-wrap gap-1">
+                            {citation.drugName.map(drug => (
+                              <span key={drug} className="px-2 py-1 bg-primary-100 text-primary-800 rounded text-xs font-medium">
+                                {drug}
+                              </span>
+                            ))}
+                          </div>
                         )}
                       </td>
                       <td className="px-4 py-4 text-sm text-gray-500">

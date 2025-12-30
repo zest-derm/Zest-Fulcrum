@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
     const formData = await request.formData();
 
     const pdf = formData.get('pdf') as File;
-    const drugName = formData.get('drugName') as string;
+    const drugNameJson = formData.get('drugName') as string;
     const indicationsJson = formData.get('indications') as string;
     const title = formData.get('title') as string;
     const authors = formData.get('authors') as string;
@@ -50,7 +50,9 @@ export async function POST(request: NextRequest) {
     const keyFindings = formData.get('keyFindings') as string | null;
     const notes = formData.get('notes') as string | null;
 
-    if (!pdf || !drugName || !title || !authors || !journal || !year) {
+    const drugName: string[] = JSON.parse(drugNameJson || '[]');
+
+    if (!pdf || !drugName || drugName.length === 0 || !title || !authors || !journal || !year) {
       return NextResponse.json(
         { error: 'Missing required fields' },
         { status: 400 }
@@ -64,7 +66,9 @@ export async function POST(request: NextRequest) {
     let pdfPath: string;
     let pdfPublicUrl: string;
     try {
-      const uploadResult = await uploadCitationPdf(pdf, drugName);
+      // Use first drug name or join multiple drugs for the upload path
+      const drugNameForPath = drugName.length === 1 ? drugName[0] : drugName.join('_');
+      const uploadResult = await uploadCitationPdf(pdf, drugNameForPath);
       pdfPath = uploadResult.path;
       pdfPublicUrl = uploadResult.publicUrl;
     } catch (error: any) {
@@ -91,9 +95,10 @@ export async function POST(request: NextRequest) {
     let finalKeyFindings = keyFindings;
     if (!finalKeyFindings && fullText) {
       try {
+        // Pass drug names as comma-separated string for LLM context
         finalKeyFindings = await extractKeyFindings(
           fullText,
-          drugName,
+          drugName.join(', '),
           citationType
         );
       } catch (error: any) {

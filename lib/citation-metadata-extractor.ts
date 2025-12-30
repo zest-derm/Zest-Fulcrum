@@ -16,7 +16,7 @@ export interface ExtractedMetadata {
   citationType: string;
   sampleSize: number | null;
   population: string | null;
-  drugName: string;
+  drugName: string[];
   indications: string[];
   referenceDrugName: string | null;
   keyFindings: string;
@@ -58,7 +58,7 @@ Extract the following information and return as JSON:
 8. citationType - One of: EFFICACY, SAFETY, BIOSIMILAR_EQUIVALENCE, HEAD_TO_HEAD, LONG_TERM_OUTCOMES, PHARMACOKINETICS, REAL_WORLD_EVIDENCE
 9. sampleSize - Number of participants (or null)
 10. population - Study population description (e.g., "Moderate-to-severe plaque psoriasis")
-11. drugName - Primary drug being studied. MUST use exact brand name from this list: ${drugList}. Common generic→brand mappings: ${genericMappings}. For head-to-head trials, use the drug that showed superior efficacy or the newer/focus drug (not the comparator).
+11. drugName - ARRAY of drugs studied. MUST use exact brand names from this list: ${drugList}. Common generic→brand mappings: ${genericMappings}. For single-drug studies, return array with one drug. For systematic reviews or meta-analyses covering multiple drugs, return all drugs mentioned. For head-to-head trials, include both drugs being compared.
 12. indications - Array of relevant conditions from: PSORIASIS, PSORIATIC_ARTHRITIS, ATOPIC_DERMATITIS, HIDRADENITIS_SUPPURATIVA, CROHNS_DISEASE, ULCERATIVE_COLITIS, RHEUMATOID_ARTHRITIS, ANKYLOSING_SPONDYLITIS, OTHER
 13. referenceDrugName - For head-to-head or biosimilar studies, the comparison drug brand name (use same list as drugName). Otherwise null.
 14. keyFindings - 3-5 sentence summary of key clinical findings
@@ -75,7 +75,7 @@ Return ONLY valid JSON in this exact format:
   "citationType": "string",
   "sampleSize": number or null,
   "population": "string or null",
-  "drugName": "string",
+  "drugName": ["string"],
   "indications": ["string"],
   "referenceDrugName": "string or null",
   "keyFindings": "string"
@@ -117,7 +117,7 @@ Return ONLY valid JSON in this exact format:
       citationType: metadata.citationType || 'EFFICACY',
       sampleSize: metadata.sampleSize || null,
       population: metadata.population || null,
-      drugName: metadata.drugName || 'Unknown',
+      drugName: Array.isArray(metadata.drugName) ? metadata.drugName : (metadata.drugName ? [metadata.drugName] : []),
       indications: Array.isArray(metadata.indications) ? metadata.indications : [],
       referenceDrugName: metadata.referenceDrugName || null,
       keyFindings: metadata.keyFindings || 'Key findings not extracted',
