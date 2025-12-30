@@ -56,7 +56,7 @@ interface Citation {
   pdfPath: string;
   pdfFileName: string;
   keyFindings: string;
-  drugName: string;
+  drugName: string[];
   indications: string[];
   referenceDrugName: string | null;
   reviewed: boolean;
@@ -76,7 +76,7 @@ interface ExtractedData {
     citationType: string;
     sampleSize: number | null;
     population: string | null;
-    drugName: string;
+    drugName: string[];
     indications: string[];
     referenceDrugName: string | null;
     keyFindings: string;

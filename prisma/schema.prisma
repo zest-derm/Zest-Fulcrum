@@ -591,7 +591,7 @@ model Citation {
   keyFindings       String          @db.Text  // Brief summary for quick reference
 
   // Drug and indication associations
-  drugName          String          // Primary drug this citation is for
+  drugName          String[]        // Drugs covered by this citation (e.g., systematic reviews may cover multiple)
   indications       IndicationType[] @default([])
 
   // For biosimilar citations - reference to parent drug
