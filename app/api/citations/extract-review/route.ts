@@ -21,7 +21,7 @@ export const dynamic = 'force-dynamic';
  *
  * This is a long-running operation that:
  * 1. Downloads PDF from Supabase storage
- * 2. Extracts full text
+ * 2. Extracts full text from the PDF
  * 3. Analyzes document structure (Stage 1)
  * 4. Extracts individual studies (Stage 2)
  * 5. Returns job ID for status tracking
