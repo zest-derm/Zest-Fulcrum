@@ -188,10 +188,11 @@ async function retrieveCitations(
     }
 
     // Query citations
+    // Note: drugName is an array field, so we use hasSome instead of in
     const citations = await prisma.citation.findMany({
       where: {
         AND: [
-          { drugName: { in: Array.from(drugsToQuery) } },
+          { drugName: { hasSome: Array.from(drugsToQuery) } },
           { indications: { has: indication } },
           { reviewed: true }, // Only use reviewed citations
         ],
