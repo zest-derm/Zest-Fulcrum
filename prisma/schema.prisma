@@ -617,3 +617,106 @@ model Citation {
   @@index([year])
   @@index([reviewed])
 }
+
+// ============================================
+// COMPREHENSIVE REVIEW EXTRACTION
+// ============================================
+
+enum ReviewExtractionStatus {
+  PENDING           // Job created, not started
+  ANALYZING_DOCUMENT // Stage 1: Full document analysis
+  EXTRACTING_STUDIES // Stage 2: Per-study extraction
+  COMPLETED         // Extraction complete, ready for review
+  APPROVED          // User approved and citations created
+  FAILED            // Extraction failed
+  CANCELLED         // User cancelled
+}
+
+model ReviewExtractionJob {
+  id                String                  @id @default(cuid())
+
+  // Review document info
+  pdfPath           String                  // Path in Supabase storage
+  pdfFileName       String                  // Original filename
+  reviewTitle       String?                 // Extracted review title
+  reviewAuthors     String?                 // Review authors
+  reviewYear        Int?                    // Review publication year
+
+  // Extraction progress
+  status            ReviewExtractionStatus  @default(PENDING)
+  totalStudies      Int                     @default(0)     // Total studies identified
+  studiesExtracted  Int                     @default(0)     // Studies completed
+  studiesApproved   Int                     @default(0)     // Studies approved by user
+
+  // Stage 1 results (document analysis)
+  documentStructure Json?                   // Map of document structure
+  referenceList     Json?                   // All references extracted
+
+  // Processing metadata
+  startedAt         DateTime?
+  completedAt       DateTime?
+  errorMessage      String?                 @db.Text
+
+  // User who initiated
+  uploadedBy        String?
+
+  createdAt         DateTime                @default(now())
+  updatedAt         DateTime                @updatedAt
+
+  extractedStudies  ExtractedStudy[]
+
+  @@index([status])
+  @@index([createdAt])
+}
+
+model ExtractedStudy {
+  id                    String                @id @default(cuid())
+  jobId                 String
+
+  // Citation metadata (extracted)
+  title                 String
+  authors               String
+  journal               String
+  year                  Int
+  pmid                  String?
+  doi                   String?
+
+  // Study characteristics
+  studyType             String                // Will map to StudyType enum
+  citationType          String                // Will map to CitationType enum
+  sampleSize            Int?
+  population            String?
+
+  // Drug and indication
+  drugName              String[]              // Multiple drugs supported
+  indications           String[]              // Will map to IndicationType enum
+  referenceDrugName     String?
+
+  // Extracted findings
+  keyFindings           String                @db.Text
+
+  // Source location in review
+  mentionedOnPages      Int[]                 @default([])  // Which pages mention this study
+  extractedFromSections String[]              @default([])  // e.g., ["Results", "Table 2", "Forest Plot"]
+
+  // Quality/confidence
+  extractionConfidence  String?               // "high", "medium", "low"
+  needsReview           Boolean               @default(false)
+
+  // User review
+  approved              Boolean               @default(false)
+  edited                Boolean               @default(false)
+  notes                 String?               @db.Text
+
+  // Link to created citation (after approval)
+  citationId            String?               @unique
+
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+
+  job                   ReviewExtractionJob   @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([jobId])
+  @@index([approved])
+  @@index([drugName])
+}
