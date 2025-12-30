@@ -42,6 +42,18 @@ export interface AssessmentInput {
   bmi?: string | null;  // '<25', '25-30', '>30' - for BMI consideration
 }
 
+interface Citation {
+  citationNumber: number;
+  title: string;
+  authors: string;
+  year: number;
+  journal: string;
+  pmid: string | null;
+  doi: string | null;
+  specificFinding: string;
+  source: 'database' | 'llm_generated';
+}
+
 interface LLMRecommendation {
   type: RecommendationType;
   drugName?: string;
@@ -50,6 +62,7 @@ interface LLMRecommendation {
   rationale: string;
   monitoringPlan?: string;
   rank: number;
+  citations?: Citation[];
 }
 
 /**
@@ -661,6 +674,30 @@ Psoriasis efficacy hierarchy:
 5. Oral agents (Apremilast/Otezla, Deucravacitinib/Sotyktu) - moderate efficacy
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CITATION REQUIREMENTS - CRITICAL
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🔬 ALL CLINICAL CLAIMS MUST BE CITED:
+- ANY statement about efficacy (e.g., "higher efficacy", "PASI90 response") MUST include citation
+- ANY safety/adverse event claims MUST include citation
+- Include specific data points (e.g., "PASI90 of 75% [1]", "superior efficacy (PASI 90: 84% vs 54%) [2]")
+- Use [1], [2], [3] notation in rationale text
+
+📚 CITATION SOURCES (in priority order):
+1. **Database citations** (provided above): Use these FIRST if relevant to your claim
+2. **Your knowledge**: If database lacks relevant evidence, cite REAL studies from your training:
+   - ONLY cite randomized controlled trials (RCTs) or systematic reviews/meta-analyses
+   - ONLY cite from high-quality journals: JAAD, JID, Lancet, NEJM, BJD, JAMA Dermatology
+   - Must include: Title, First Author et al., Journal, Year, and PMID if available
+   - Example: "Study of IL-23 inhibitor efficacy in moderate-to-severe plaque psoriasis, Gordon et al., NEJM, 2016"
+
+⚠️ ANTI-HALLUCINATION RULES:
+- If you cite from your knowledge, the study MUST be real and verifiable
+- If you cannot find a REAL, VERIFIABLE primary source for a claim, DO NOT MAKE THE CLAIM
+- NEVER invent PMIDs, authors, or study details
+- When in doubt, omit the claim rather than cite an uncertain source
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 OUTPUT REQUIREMENTS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -677,15 +714,18 @@ For EACH recommendation provide:
 5. **Rationale**: Explain why this drug is recommended:
    - Mention tier and cost savings if applicable
    - Mention comorbidity match if applicable (e.g., "IL-17 inhibitor appropriate for psoriatic arthritis")
-   - Mention efficacy profile
+   - Mention efficacy profile WITH CITATIONS [1], [2], etc.
    - Keep concise (2-3 sentences)
+   - MUST cite any clinical claims with specific data points
 6. **Monitoring plan**: Standard follow-up (e.g., "Assess efficacy at 12-16 weeks")
 7. **Rank**: 1, 2, or 3
+8. **Citations**: Array of citation objects for this recommendation (numbered 1, 2, 3... within recommendation)
 
 ⚠️ NEVER output placeholder text like "No options available"
 ⚠️ NEVER recommend the current drug
 ⚠️ NEVER recommend same drug twice
 ⚠️ All recommendations must be type "INITIATE_BIOLOGIC"
+⚠️ NEVER make clinical claims without citing sources
 
 Return ONLY valid JSON with this exact structure:
 {
@@ -695,9 +735,22 @@ Return ONLY valid JSON with this exact structure:
       "drugName": "string",
       "newDose": "string",
       "newFrequency": "string",
-      "rationale": "string",
+      "rationale": "string (with inline [1], [2] citations)",
       "monitoringPlan": "string",
-      "rank": number
+      "rank": number,
+      "citations": [
+        {
+          "citationNumber": 1,
+          "title": "Full study title",
+          "authors": "First Author et al.",
+          "year": 2024,
+          "journal": "Journal Name",
+          "pmid": "12345678" or null,
+          "doi": "10.xxxx/xxxxx" or null,
+          "specificFinding": "The specific data point cited (e.g., 'PASI90 of 75%')",
+          "source": "database" or "llm_generated"
+        }
+      ]
     }
   ]
 }`;
@@ -1055,6 +1108,7 @@ export async function generateLLMRecommendations(
       ...costData,
       rationale: rec.rationale,
       evidenceSources: evidence, // Use structured clinical findings from database
+      citations: rec.citations || [], // Include citations from LLM response
       monitoringPlan: rec.monitoringPlan,
       // All recommendations are initiations, use target drug's tier
       tier: targetDrug?.tier || currentFormularyDrug?.tier,

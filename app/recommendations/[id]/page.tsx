@@ -5,6 +5,7 @@ import { Suspense } from 'react';
 import ContraindicatedDrugsToggle from './ContraindicatedDrugsToggle';
 import RecommendationFeedback from './RecommendationFeedback';
 import FormularyReference from './FormularyReference';
+import CitationReferences from './CitationReferences';
 
 interface PageProps {
   params: { id: string };
@@ -565,6 +566,12 @@ export default async function RecommendationsPage({ params }: PageProps) {
                 </h4>
                 <p className="text-sm text-gray-700" dangerouslySetInnerHTML={{ __html: boldMedications(rec.rationale) }} />
               </div>
+
+              {/* Citations */}
+              <CitationReferences
+                citations={(rec.citations as any) || []}
+                recommendationRank={rec.rank}
+              />
 
               {/* Monitoring Plan */}
               {rec.monitoringPlan && (

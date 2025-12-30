@@ -3,6 +3,7 @@
 export const dynamic = 'force-dynamic';
 
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Upload, FileText, ExternalLink, Edit2, Save, X, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 import PasswordProtection from '@/components/PasswordProtection';
 import { BIOLOGICS_DATA } from '@/lib/biologics-data';
@@ -86,6 +87,7 @@ interface ExtractedData {
 }
 
 export default function CitationsPage() {
+  const searchParams = useSearchParams();
   const [citations, setCitations] = useState<Citation[]>([]);
   const [loading, setLoading] = useState(true);
   const [extracting, setExtracting] = useState(false);
@@ -105,6 +107,51 @@ export default function CitationsPage() {
   useEffect(() => {
     loadCitations();
   }, []);
+
+  // Pre-populate form from query parameters (for LLM-generated citations)
+  useEffect(() => {
+    if (!searchParams) return;
+
+    const title = searchParams.get('title');
+    const authors = searchParams.get('authors');
+    const year = searchParams.get('year');
+    const journal = searchParams.get('journal');
+    const pmid = searchParams.get('pmid');
+    const doi = searchParams.get('doi');
+    const keyFindings = searchParams.get('keyFindings');
+    const source = searchParams.get('source');
+
+    if (title && authors && year && journal) {
+      // Pre-populate the form with LLM-generated citation data
+      setExtractedData({
+        metadata: {
+          title,
+          authors,
+          journal,
+          year: parseInt(year),
+          pmid: pmid || null,
+          doi: doi || null,
+          studyType: 'RCT', // Default to RCT for LLM-generated citations
+          citationType: 'EFFICACY', // Default to EFFICACY
+          sampleSize: null,
+          population: null,
+          drugName: [],
+          indications: [],
+          referenceDrugName: null,
+          keyFindings: keyFindings || '',
+        },
+        fullText: '',
+        pdfFileName: 'llm-generated-citation.pdf',
+      });
+
+      if (source === 'llm_generated') {
+        setUploadStatus({
+          success: true,
+          message: 'Citation metadata from AI has been pre-filled. Please review carefully, fill in missing fields (drug names, indications), and upload a PDF of the study to save it to the database.',
+        });
+      }
+    }
+  }, [searchParams]);
 
   const loadCitations = async () => {
     try {
@@ -155,7 +202,13 @@ export default function CitationsPage() {
 
   // Step 2: Save citation after review
   const handleSaveCitation = async () => {
-    if (!extractedData || !selectedFile) return;
+    if (!extractedData || !selectedFile) {
+      setUploadStatus({
+        success: false,
+        message: 'Please upload a PDF of the study before saving.',
+      });
+      return;
+    }
 
     setUploading(true);
     setUploadStatus(null);
@@ -359,12 +412,48 @@ export default function CitationsPage() {
             <div className="space-y-6">
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                 <p className="text-sm text-blue-900 font-medium">
-                  ✅ Metadata extracted from {selectedFile?.name}
+                  {selectedFile ? (
+                    <>✅ Metadata extracted from {selectedFile.name}</>
+                  ) : (
+                    <>✅ Citation metadata pre-filled from AI recommendation</>
+                  )}
                 </p>
                 <p className="text-xs text-blue-700 mt-1">
                   Review the fields below and edit if needed, then click "Save Citation"
                 </p>
               </div>
+
+              {/* PDF Upload for pre-populated citations */}
+              {!selectedFile && (
+                <div className="border-2 border-dashed border-blue-300 rounded-lg p-4 bg-blue-50">
+                  <p className="text-sm font-medium text-blue-900 mb-3">
+                    📄 Upload PDF (Required)
+                  </p>
+                  <p className="text-xs text-blue-700 mb-3">
+                    Please upload the PDF of this study to add it to the database. This ensures we maintain full-text access for future reference.
+                  </p>
+                  <label className="btn btn-primary cursor-pointer inline-flex items-center">
+                    {extracting ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Extracting...
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="w-4 h-4 mr-2" />
+                        Choose PDF File
+                      </>
+                    )}
+                    <input
+                      type="file"
+                      className="hidden"
+                      accept=".pdf"
+                      onChange={handlePdfUpload}
+                      disabled={extracting}
+                    />
+                  </label>
+                </div>
+              )}
 
               <div className="grid md:grid-cols-2 gap-6">
                 <div>

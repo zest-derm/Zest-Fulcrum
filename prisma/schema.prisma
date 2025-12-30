@@ -355,6 +355,7 @@ model Recommendation {
   // Clinical justification
   rationale               String
   evidenceSources         String[]           @default([])
+  citations               Json               @default("[]")  // Array of citation objects with inline reference metadata
   monitoringPlan          String?
 
   // Formulary info
