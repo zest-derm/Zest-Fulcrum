@@ -20,12 +20,15 @@ if (!supabaseUrl || !supabaseAnonKey) {
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 // Server-side supabase client with service role (bypasses RLS)
-export const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
-  auth: {
-    autoRefreshToken: false,
-    persistSession: false,
-  },
-});
+// Only initialize on server (service role key is not available in browser)
+export const supabaseAdmin = typeof window === 'undefined' && supabaseServiceKey
+  ? createClient(supabaseUrl, supabaseServiceKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+    })
+  : null as any; // Will be null in browser, but that's fine since it's only used server-side
 
 // Storage bucket name for citations
 export const CITATIONS_BUCKET = 'citations';
