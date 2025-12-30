@@ -285,11 +285,20 @@ export default function CitationsPage() {
   return (
     <PasswordProtection storageKey="manage_data_authenticated">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="mb-8">
-          <h1 className="mb-2">Clinical Citation Management</h1>
-          <p className="text-gray-600">
-            Upload PDFs and AI will automatically extract all citation metadata
-          </p>
+        <div className="mb-8 flex items-start justify-between">
+          <div>
+            <h1 className="mb-2">Clinical Citation Management</h1>
+            <p className="text-gray-600">
+              Upload PDFs and AI will automatically extract all citation metadata
+            </p>
+          </div>
+          <a
+            href="/admin/citations/extract-review"
+            className="btn btn-secondary inline-flex items-center whitespace-nowrap"
+          >
+            <FileText className="w-4 h-4 mr-2" />
+            Extract Comprehensive Review
+          </a>
         </div>
 
         {/* Upload Form */}
