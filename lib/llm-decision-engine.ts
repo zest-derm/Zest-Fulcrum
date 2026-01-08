@@ -600,9 +600,22 @@ async function getLLMRecommendationSuggestions(
     }
   });
 
-  // Show top 10 unique drugs, prioritizing lower tiers
-  const formularyText = Array.from(uniqueFormularyDrugs.values())
-    .slice(0, 10)
+  // Show ALL unique drugs to the LLM (sorted by tier, PA, cost)
+  const allUniqueDrugs = Array.from(uniqueFormularyDrugs.values());
+
+  // Debug: Log what drugs the LLM will see
+  console.log(`━━━ ALL ${allUniqueDrugs.length} DRUGS SHOWN TO LLM ━━━`);
+  const tierCounts = allUniqueDrugs.reduce((acc, d) => {
+    acc[d.tier] = (acc[d.tier] || 0) + 1;
+    return acc;
+  }, {} as Record<number, number>);
+  console.log('Tier distribution:', tierCounts);
+  console.log('First 10 drugs (sorted by tier):');
+  allUniqueDrugs.slice(0, 10).forEach((d, idx) => {
+    console.log(`  ${idx + 1}. ${d.drugName} (${d.genericName}, ${d.drugClass}, Tier ${d.tier})`);
+  });
+
+  const formularyText = allUniqueDrugs
     .map(d => `${d.drugName} (${d.drugClass}, Tier ${d.tier}, PA: ${d.requiresPA ? 'Yes' : 'No'}, Annual Cost: $${d.annualCostWAC})`)
     .join('\n');
 
@@ -637,10 +650,14 @@ Available tiers: [${availableTiers.join(', ')}]
 Lowest tier (best for cost savings): Tier ${lowestTierInFormulary}
 ${currentBrandName ? `Current drug tier: Tier ${currentTier}` : ''}
 
-Available Formulary Options (current drug excluded, deduplicated by generic):
+Available Formulary Options (current drug excluded, deduplicated by generic, sorted by tier):
 ${formularyText}
 
-⚠️ CRITICAL PRIORITY: Cost savings is THE goal. ALWAYS prioritize Tier ${lowestTierInFormulary} (lowest tier) first.
+⚠️ CRITICAL CONSTRAINTS:
+1. Cost savings is THE PRIMARY GOAL. ALWAYS prioritize Tier ${lowestTierInFormulary} drugs first.
+2. You MUST ONLY recommend drugs from the list above. Do NOT suggest drugs not explicitly listed.
+3. The tier shown above is the ACTUAL tier in this patient's formulary - do not make assumptions.
+4. Start from the TOP of the list (lowest tier) and work down - higher tiers only if clinically necessary.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 PEER-REVIEWED CLINICAL CITATIONS
@@ -851,7 +868,29 @@ Example WITHOUT citations (RARE - acceptable only if no clinical claims):
       console.log(`Recommendation ${idx + 1} citations:`, rec.citations ? `${rec.citations.length} citations` : 'NO CITATIONS');
     });
 
-    return recommendations as LLMRecommendation[];
+    // Validate: Ensure all recommendations are from the drugs shown to LLM
+    const allowedDrugNames = new Set(allUniqueDrugs.map(d => d.drugName.toLowerCase()));
+    const validatedRecs = recommendations.filter((rec: LLMRecommendation) => {
+      if (!rec.drugName) return false;
+
+      const isAllowed = allowedDrugNames.has(rec.drugName.toLowerCase());
+      if (!isAllowed) {
+        console.warn(`⚠️  LLM recommended "${rec.drugName}" which was NOT in the formulary options. Filtering out.`);
+        return false;
+      }
+      return true;
+    });
+
+    if (validatedRecs.length === 0) {
+      console.error('All LLM recommendations were invalid (not in formulary). Original response:', rawContent);
+      throw new Error('LLM only recommended drugs outside the provided formulary options');
+    }
+
+    if (validatedRecs.length < recommendations.length) {
+      console.warn(`Filtered ${recommendations.length - validatedRecs.length} invalid recommendations. Keeping ${validatedRecs.length} valid.`);
+    }
+
+    return validatedRecs as LLMRecommendation[];
   } catch (error) {
     console.error('Error getting LLM recommendations:', error);
     throw error; // Re-throw to trigger fallback
