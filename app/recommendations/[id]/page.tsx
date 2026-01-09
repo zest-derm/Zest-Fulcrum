@@ -466,6 +466,11 @@ export default async function RecommendationsPage({ params }: PageProps) {
                         </span>
                       )}
                     </div>
+                    {(rec.strength || rec.formulation) && (
+                      <p className="text-sm text-gray-600 mt-1">
+                        {[rec.strength, rec.formulation].filter(Boolean).join(' • ')}
+                      </p>
+                    )}
                     <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded">
                       <p className="text-sm font-semibold text-blue-900">
                         {rec.type === 'CEASE_BIOLOGIC' ? (

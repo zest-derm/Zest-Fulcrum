@@ -579,30 +579,29 @@ async function getLLMRecommendationSuggestions(
     : '';
 
   // Filter and deduplicate formulary options
-  // CRITICAL: Exclude the current brand drug AND deduplicate by generic name
-  // to avoid showing multiple formulations of the same drug to the LLM
+  // Keep different formulations separate - only remove exact duplicates
   const uniqueFormularyDrugs = new Map<string, FormularyDrug>();
 
   formularyOptions.forEach(drug => {
-    // Exclude current brand drug
+    // Exclude current brand drug (exact match only)
     if (currentBrandName && drug.drugName.toLowerCase() === currentBrandName.toLowerCase()) {
       return;
     }
-    // Exclude by generic name match too (belt and suspenders)
     if (currentDrug && drug.drugName.toLowerCase() === currentDrug.toLowerCase()) {
       return;
     }
 
-    // Deduplicate by generic name - keep LOWEST TIER version for cost optimization
-    const genericKey = drug.genericName.toLowerCase();
-    const existing = uniqueFormularyDrugs.get(genericKey);
+    // Create unique key including formulation and strength to keep different formulations separate
+    const uniqueKey = [
+      drug.drugName.toLowerCase(),
+      drug.tier,
+      drug.formulation?.toLowerCase() || '',
+      drug.strength?.toLowerCase() || '',
+    ].join('|');
 
-    if (!existing || drug.tier < existing.tier) {
-      // Keep this drug if it's the first, or if it has a lower tier
-      uniqueFormularyDrugs.set(genericKey, drug);
-      if (existing) {
-        console.log(`  Dedup: Replaced ${existing.drugName} (Tier ${existing.tier}) with ${drug.drugName} (Tier ${drug.tier})`);
-      }
+    // Only skip exact duplicates
+    if (!uniqueFormularyDrugs.has(uniqueKey)) {
+      uniqueFormularyDrugs.set(uniqueKey, drug);
     }
   });
 
@@ -622,7 +621,11 @@ async function getLLMRecommendationSuggestions(
   });
 
   const formularyText = allUniqueDrugs
-    .map(d => `${d.drugName} (${d.drugClass}, Tier ${d.tier}, PA: ${d.requiresPA ? 'Yes' : 'No'}, Annual Cost: $${d.annualCostWAC})`)
+    .map(d => {
+      const formDetails = [d.strength, d.formulation].filter(Boolean).join(', ');
+      const formString = formDetails ? ` [${formDetails}]` : '';
+      return `${d.drugName}${formString} (${d.drugClass}, Tier ${d.tier}, PA: ${d.requiresPA ? 'Yes' : 'No'}, Annual Cost: $${d.annualCostWAC})`;
+    })
     .join('\n');
 
   const evidenceText = evidence.length > 0
@@ -1234,6 +1237,8 @@ export async function generateLLMRecommendations(
       rank: rec.rank,
       type: rec.type,
       drugName: displayDrugName,
+      formulation: targetDrug?.formulation || null,
+      strength: targetDrug?.strength || null,
       newDose: finalDose,
       newFrequency: finalFrequency,
       ...costData,

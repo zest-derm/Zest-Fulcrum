@@ -120,6 +120,8 @@ export async function POST(request: NextRequest) {
         };
 
         // Only add optional fields if they're defined
+        if (rec.formulation !== undefined) data.formulation = rec.formulation;
+        if (rec.strength !== undefined) data.strength = rec.strength;
         if (rec.newDose !== undefined) data.newDose = rec.newDose;
         if (rec.newFrequency !== undefined) data.newFrequency = rec.newFrequency;
         if (rec.currentAnnualCost !== undefined) data.currentAnnualCost = rec.currentAnnualCost;
