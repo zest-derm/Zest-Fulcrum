@@ -40,6 +40,8 @@ export interface AssessmentInput {
   } | null;
   diagnosis: DiagnosisType;
   hasPsoriaticArthritis: boolean;
+  hasAtopicDermatitis?: boolean;  // For multi-indication consideration
+  hasAsthma?: boolean;  // For multi-indication consideration (Dupixent)
   contraindications?: string[];
   failedTherapies?: string[];
   isStable?: boolean;
@@ -625,15 +627,32 @@ async function getLLMRecommendationSuggestions(
     console.log(`  ${idx + 1}. ${d.drugName} (${d.genericName}, ${d.drugClass}, Tier ${d.tier})`);
   });
 
+  // Build list of patient conditions for multi-indication matching
+  const patientConditions: string[] = [assessment.diagnosis];
+  if (assessment.hasPsoriaticArthritis) patientConditions.push('PSORIATIC_ARTHRITIS', 'PsA');
+  if (assessment.hasAtopicDermatitis) patientConditions.push('ATOPIC_DERMATITIS', 'AD', 'ECZEMA');
+  if (assessment.hasAsthma) patientConditions.push('ASTHMA');
+
   const formularyText = allUniqueDrugs
     .map(d => {
       const formDetails = [d.strength, d.formulation].filter(Boolean).join(', ');
       const formString = formDetails ? ` [${formDetails}]` : '';
 
-      // Get FDA safety data
+      // Get FDA safety and indication data
       const fdaData = getFDAData(d.drugName);
       const blackBoxWarnings = fdaData?.blackBoxWarnings || [];
       const fdaContraindications = fdaData?.contraindications || [];
+      const fdaIndications = fdaData?.fdaIndications || [];
+
+      // Calculate how many patient conditions this drug is FDA-approved for
+      const approvedForConditions = patientConditions.filter(condition =>
+        fdaIndications.some(indication =>
+          indication.toLowerCase().includes(condition.toLowerCase().replace('_', ' '))
+        )
+      );
+      const multiIndicationBadge = approvedForConditions.length > 1
+        ? ` ✅ MULTI-INDICATION (${approvedForConditions.length} conditions)`
+        : '';
 
       // Format safety information
       const safetyInfo: string[] = [];
@@ -645,7 +664,7 @@ async function getLLMRecommendationSuggestions(
       }
       const safetyString = safetyInfo.length > 0 ? ` | ${safetyInfo.join(' | ')}` : '';
 
-      return `${d.drugName}${formString} (${d.drugClass}, Tier ${d.tier}, PA: ${d.requiresPA ? 'Yes' : 'No'}, Annual Cost: $${d.annualCostWAC}${safetyString})`;
+      return `${d.drugName}${formString} (${d.drugClass}, Tier ${d.tier}, PA: ${d.requiresPA ? 'Yes' : 'No'}, Annual Cost: $${d.annualCostWAC}${safetyString}${multiIndicationBadge})`;
     })
     .join('\n');
 
@@ -683,17 +702,20 @@ ${currentBrandName ? `Current drug tier: Tier ${currentTier}` : ''}
 Available Formulary Options (current drug excluded, deduplicated by generic, sorted by tier):
 ${formularyText}
 
-📋 FDA SAFETY DATA LEGEND:
+📋 FDA DATA LEGEND:
 - ⚠️ BLACK BOX: FDA's most serious warnings (e.g., serious infections, malignancy risk)
 - CI: FDA-listed contraindications (conditions where drug should not be used)
+- ✅ MULTI-INDICATION: Drug is FDA-approved for multiple patient conditions
 - This data is from official FDA drug labels (updated quarterly via openFDA API)
-- Consider these warnings when recommending drugs, especially with patient contraindications
 
 ⚠️ CRITICAL CONSTRAINTS:
-1. Cost savings is THE PRIMARY GOAL. ALWAYS prioritize Tier ${lowestTierInFormulary} drugs first.
-2. You MUST ONLY recommend drugs from the list above. Do NOT suggest drugs not explicitly listed.
-3. The tier shown above is the ACTUAL tier in this patient's formulary - do not make assumptions.
-4. Start from the TOP of the list (lowest tier) and work down - higher tiers only if clinically necessary.
+1. Cost savings is THE PRIMARY GOAL. Prioritize lowest tier drugs.
+2. **EXCEPTION**: Multi-indication drugs CAN trump tier if patient has multiple conditions.
+   - Example: If patient has psoriasis + atopic dermatitis + asthma, recommend Dupixent (Tier 2, approved for all 3) over Rinvoq (Tier 1, psoriasis only)
+   - Example: If patient has psoriasis + psoriatic arthritis, prioritize drugs approved for BOTH over psoriasis-only drugs
+   - Rationale: Treating multiple conditions with one drug is more clinically appropriate than tier savings alone
+3. You MUST ONLY recommend drugs from the list above. Do NOT suggest drugs not explicitly listed.
+4. The tier shown above is the ACTUAL tier in this patient's formulary - do not make assumptions.
 5. Factor in FDA safety data (black box warnings, contraindications) when making recommendations.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -710,18 +732,26 @@ ${evidenceText}
 SELECTION ALGORITHM
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-**Step 1: Filter by Tier (ABSOLUTE PRIORITY)**
-- ⚠️ CRITICAL: You MUST exhaust ALL Tier ${lowestTierInFormulary} biologic options BEFORE recommending ANY higher tier drug
-- If 3+ Tier ${lowestTierInFormulary} biologics exist, ALL 3 recommendations must be Tier ${lowestTierInFormulary}
-- Only move to Tier ${availableTiers[1] || 'N/A'} if fewer than 3 Tier ${lowestTierInFormulary} biologics are available
-- TIER ALWAYS OVERRIDES EFFICACY CLASS - a Tier 1 IL-12/23 drug beats a Tier 2 IL-17 drug
+**Step 1: Check for Multi-Indication Drugs (HIGHEST PRIORITY)**
+- If patient has multiple conditions (e.g., psoriasis + PsA, or psoriasis + AD + asthma):
+  - Look for drugs marked ✅ MULTI-INDICATION (${approvedForConditions.length} conditions)
+  - A higher-tier multi-indication drug CAN be prioritized over a lower-tier single-indication drug
+  - Example: Dupixent Tier 2 (psoriasis + AD + asthma) beats Rinvoq Tier 1 (psoriasis only) if patient has all 3
+  - Example: Cosentyx Tier 2 (psoriasis + PsA) beats Stelara Tier 1 (psoriasis only*) if patient has PsA
+  - *Note: Some IL-12/23 drugs are less effective for PsA than IL-17/IL-23 inhibitors
 
-**Step 2: Match Comorbidities (within tier)**
+**Step 2: Filter by Tier (if no multi-indication benefit)**
+- If NO multi-indication advantage, prioritize lowest tier (Tier ${lowestTierInFormulary})
+- You MUST exhaust ALL Tier ${lowestTierInFormulary} biologic options BEFORE recommending ANY higher tier drug
+- If 3+ Tier ${lowestTierInFormulary} biologics exist, ALL 3 recommendations must be Tier ${lowestTierInFormulary}
+- Only move to Tier ${availableTiers[1] || 'N/A'} if fewer than 3 Tier ${lowestTierInFormulary} biologics or multi-indication applies
+
+**Step 3: Match Comorbidities (within tier or indication match)**
 - Psoriatic Arthritis → IL-17 inhibitors (Cosentyx, Taltz, Siliq) or IL-23 inhibitors (Tremfya, Skyrizi, Ilumya) or TNF inhibitors (Humira, Enbrel, Cimzia)
 - Asthma + Atopic Dermatitis → Dupixent strongly preferred (multi-indication benefit)
 - Inflammatory Bowel Disease → AVOID IL-17 inhibitors
 
-**Step 3: Rank by Efficacy (ONLY within the same tier)**
+**Step 4: Rank by Efficacy (ONLY within the same tier)**
 Psoriasis efficacy hierarchy (for ranking within a tier):
 1. IL-23 inhibitors (Risankizumab/Skyrizi, Guselkumab/Tremfya, Tildrakizumab/Ilumya) - highest efficacy
 2. IL-17 inhibitors (Secukinumab/Cosentyx, Ixekizumab/Taltz, Brodalumab/Siliq) - excellent efficacy
