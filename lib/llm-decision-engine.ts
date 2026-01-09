@@ -861,7 +861,7 @@ Example WITHOUT citations (RARE - acceptable only if no clinical claims):
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-5-20250929',
       max_tokens: 4096,
-      temperature: 0.4,
+      temperature: 0, // Set to 0 for deterministic outputs - same input = same output
       system: 'You are a clinical decision support AI for biologic selection. Recommend the next best biologic from the formulary, prioritizing lowest tier and matching comorbidities. IMPORTANT: If you make specific clinical claims (efficacy data, safety statements), you MUST include a citations array with full metadata. Citations are OPTIONAL if you only discuss tier/cost/indications. Always respond with valid JSON only, no other text.',
       messages: [{ role: 'user', content: prompt }],
     });
