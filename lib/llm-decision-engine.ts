@@ -682,23 +682,27 @@ ${evidenceText}
 SELECTION ALGORITHM
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-**Step 1: Filter by Tier**
-- Prioritize Tier ${lowestTierInFormulary} drugs first
-- Then Tier ${availableTiers[1] || 'N/A'}
-- Then higher tiers if needed
+**Step 1: Filter by Tier (ABSOLUTE PRIORITY)**
+- ⚠️ CRITICAL: You MUST exhaust ALL Tier ${lowestTierInFormulary} biologic options BEFORE recommending ANY higher tier drug
+- If 3+ Tier ${lowestTierInFormulary} biologics exist, ALL 3 recommendations must be Tier ${lowestTierInFormulary}
+- Only move to Tier ${availableTiers[1] || 'N/A'} if fewer than 3 Tier ${lowestTierInFormulary} biologics are available
+- TIER ALWAYS OVERRIDES EFFICACY CLASS - a Tier 1 IL-12/23 drug beats a Tier 2 IL-17 drug
 
 **Step 2: Match Comorbidities (within tier)**
 - Psoriatic Arthritis → IL-17 inhibitors (Cosentyx, Taltz, Siliq) or IL-23 inhibitors (Tremfya, Skyrizi, Ilumya) or TNF inhibitors (Humira, Enbrel, Cimzia)
 - Asthma + Atopic Dermatitis → Dupixent strongly preferred (multi-indication benefit)
 - Inflammatory Bowel Disease → AVOID IL-17 inhibitors
 
-**Step 3: Rank by Efficacy (within tier, after comorbidity match)**
-Psoriasis efficacy hierarchy:
+**Step 3: Rank by Efficacy (ONLY within the same tier)**
+Psoriasis efficacy hierarchy (for ranking within a tier):
 1. IL-23 inhibitors (Risankizumab/Skyrizi, Guselkumab/Tremfya, Tildrakizumab/Ilumya) - highest efficacy
 2. IL-17 inhibitors (Secukinumab/Cosentyx, Ixekizumab/Taltz, Brodalumab/Siliq) - excellent efficacy
-3. TNF inhibitors (Adalimumab/Humira, Etanercept/Enbrel, Certolizumab/Cimzia) - good efficacy
-4. IL-4/13 inhibitors (Dupilumab/Dupixent) - moderate psoriasis efficacy, excellent for AD
-5. Oral agents (Apremilast/Otezla, Deucravacitinib/Sotyktu) - moderate efficacy
+3. IL-12/IL-23 inhibitors (Ustekinumab/Stelara/Wezlana) - good efficacy, older mechanism
+4. TNF inhibitors (Adalimumab/Humira, Etanercept/Enbrel, Certolizumab/Cimzia) - good efficacy
+5. IL-4/13 inhibitors (Dupilumab/Dupixent) - moderate psoriasis efficacy, excellent for AD
+6. Oral agents (Apremilast/Otezla, Deucravacitinib/Sotyktu) - moderate efficacy
+
+⚠️ REMINDER: This hierarchy is ONLY for ranking drugs WITHIN THE SAME TIER. Lower tier always wins.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 CITATION REQUIREMENTS - CRITICAL
@@ -746,9 +750,11 @@ OUTPUT REQUIREMENTS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Generate EXACTLY 3 recommendations ranked by:
-1. LOWEST tier first (Tier ${lowestTierInFormulary} priority)
-2. Comorbidity match (if PsA present)
-3. Efficacy (IL-23 > IL-17 > TNF for psoriasis)
+1. ⚠️ TIER IS ABSOLUTE PRIORITY - Exhaust ALL Tier ${lowestTierInFormulary} biologics before any Tier ${availableTiers[1] || 'N/A'}
+2. Within tier: Comorbidity match (if PsA present)
+3. Within tier: Efficacy (IL-23 > IL-17 > IL-12/23 > TNF for psoriasis)
+
+CRITICAL RULE: If you have 3+ Tier ${lowestTierInFormulary} biologics available, ALL 3 recommendations MUST be Tier ${lowestTierInFormulary}.
 
 For EACH recommendation provide:
 1. **Type**: Use "INITIATE_BIOLOGIC" for all recommendations
@@ -771,6 +777,7 @@ For EACH recommendation provide:
 ⚠️ NEVER output placeholder text like "No options available"
 ⚠️ NEVER recommend the current drug
 ⚠️ NEVER recommend same drug twice
+⚠️ NEVER skip a lower tier drug in favor of a higher tier (e.g., don't pick Taltz Tier 2 when Stelara/Wezlana Tier 1 are available)
 ⚠️ All recommendations must be type "INITIATE_BIOLOGIC"
 ⚠️ DO make clinical claims about efficacy/safety - just cite them properly
 ⚠️ Your recommendations should be clinically rich and evidence-based, not bland tier statements
