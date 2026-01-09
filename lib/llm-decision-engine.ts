@@ -593,10 +593,16 @@ async function getLLMRecommendationSuggestions(
       return;
     }
 
-    // Deduplicate by generic name - keep first occurrence (usually most common formulation)
+    // Deduplicate by generic name - keep LOWEST TIER version for cost optimization
     const genericKey = drug.genericName.toLowerCase();
-    if (!uniqueFormularyDrugs.has(genericKey)) {
+    const existing = uniqueFormularyDrugs.get(genericKey);
+
+    if (!existing || drug.tier < existing.tier) {
+      // Keep this drug if it's the first, or if it has a lower tier
       uniqueFormularyDrugs.set(genericKey, drug);
+      if (existing) {
+        console.log(`  Dedup: Replaced ${existing.drugName} (Tier ${existing.tier}) with ${drug.drugName} (Tier ${drug.tier})`);
+      }
     }
   });
 
@@ -1185,8 +1191,22 @@ export async function generateLLMRecommendations(
   // Step 5: Add cost calculations and attach structured evidence
   // Evidence comes from ClinicalFinding database table (human-reviewed findings)
   const recommendations = await Promise.all(llmRecs.map(async rec => {
+    // Find the LOWEST TIER version of the recommended drug (same logic as deduplication)
     const targetDrug = rec.drugName
-      ? patientWithFormulary.plan.formularyDrugs.find(d => d.drugName.toLowerCase() === rec.drugName?.toLowerCase()) ?? null
+      ? (() => {
+          const matches = patientWithFormulary.plan.formularyDrugs.filter(
+            d => d.drugName.toLowerCase() === rec.drugName?.toLowerCase()
+          );
+          if (matches.length === 0) return null;
+          if (matches.length === 1) return matches[0];
+
+          // Multiple formulations - return lowest tier
+          const lowestTier = matches.reduce((best, current) =>
+            current.tier < best.tier ? current : best
+          );
+          console.log(`  Found ${matches.length} formulations of ${rec.drugName}, using Tier ${lowestTier.tier}`);
+          return lowestTier;
+        })()
       : null;
 
     const costData = calculateCostSavings(rec, currentFormularyDrug, targetDrug);
