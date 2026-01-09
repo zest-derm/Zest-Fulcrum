@@ -849,7 +849,15 @@ Example WITHOUT citations (RARE - acceptable only if no clinical claims):
 }`;
 
   try {
+    console.log('\n━━━ LLM PROMPT (FULL) ━━━');
+    console.log(prompt);
+    console.log('━━━ END PROMPT ━━━\n');
+
     const anthropic = getAnthropic();
+
+    console.log('Calling Claude Sonnet 4.5 for recommendations...');
+    const startTime = Date.now();
+
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-5-20250929',
       max_tokens: 4096,
@@ -858,9 +866,16 @@ Example WITHOUT citations (RARE - acceptable only if no clinical claims):
       messages: [{ role: 'user', content: prompt }],
     });
 
+    const elapsedTime = Date.now() - startTime;
+    console.log(`LLM responded in ${elapsedTime}ms`);
+
     const responseContent = response.content[0];
     const rawContent = responseContent.type === 'text' ? responseContent.text : '{}';
-    console.log('LLM Response:', rawContent); // Debug logging
+
+    console.log('\n━━━ LLM RESPONSE (RAW) ━━━');
+    console.log(rawContent);
+    console.log('━━━ END RESPONSE ━━━\n');
+
     const cleanJson = stripMarkdownCodeBlock(rawContent);
     const parsed = JSON.parse(cleanJson);
 
@@ -872,10 +887,17 @@ Example WITHOUT citations (RARE - acceptable only if no clinical claims):
       throw new Error('LLM returned no recommendations');
     }
 
-    // Debug: Check if citations are present in the response
+    // Debug: Log parsed recommendations structure
+    console.log('\n━━━ PARSED RECOMMENDATIONS ━━━');
     recommendations.forEach((rec, idx) => {
-      console.log(`Recommendation ${idx + 1} citations:`, rec.citations ? `${rec.citations.length} citations` : 'NO CITATIONS');
+      console.log(`\nRecommendation ${idx + 1}:`);
+      console.log(`  Drug: ${rec.drugName}`);
+      console.log(`  Type: ${rec.type}`);
+      console.log(`  Rank: ${rec.rank}`);
+      console.log(`  Citations: ${rec.citations ? rec.citations.length : 0}`);
+      console.log(`  Rationale (first 100 chars): ${rec.rationale?.substring(0, 100)}...`);
     });
+    console.log('━━━ END PARSED RECOMMENDATIONS ━━━\n');
 
     // Validate: Ensure all recommendations are from the drugs shown to LLM
     const allowedDrugNames = new Set(allUniqueDrugs.map(d => d.drugName.toLowerCase()));
@@ -1065,6 +1087,24 @@ export async function generateLLMRecommendations(
           severity: 'RELATIVE' as const,
         })),
       };
+
+  console.log(`\n${'='.repeat(80)}`);
+  console.log(`━━━ LLM DECISION ENGINE: STARTING RECOMMENDATION GENERATION ━━━`);
+  console.log(`${'='.repeat(80)}`);
+
+  console.log(`\n📋 PATIENT CONTEXT:`);
+  console.log(`  Patient ID: ${assessment.patientId || 'PHI-free assessment'}`);
+  console.log(`  Plan: ${plan.name || plan.planName}`);
+  console.log(`  Diagnosis: ${assessment.diagnosis}`);
+  console.log(`  Has PsA: ${assessment.hasPsoriaticArthritis ? 'YES' : 'NO'}`);
+  console.log(`  Current Drug: ${currentBiologic?.drugName || 'None (initiating)'}`);
+  console.log(`  Current Dose: ${currentBiologic?.dose || 'N/A'}`);
+  console.log(`  Current Frequency: ${currentBiologic?.frequency || 'N/A'}`);
+  console.log(`  Is Stable: ${assessment.isStable ?? 'N/A'}`);
+  console.log(`  DLQI Score: ${assessment.dlqiScore}`);
+  console.log(`  BMI: ${assessment.bmi || 'N/A'}`);
+  console.log(`  Contraindications: ${patientWithFormulary.contraindications.length > 0 ? patientWithFormulary.contraindications.map(c => c.type).join(', ') : 'None'}`);
+  console.log(`  Failed Therapies: ${assessment.failedTherapies?.length ? assessment.failedTherapies.join(', ') : 'None'}`);
 
   console.log(`\n━━━ FORMULARY MATCHING DEBUG ━━━`);
   console.log(`Total formulary drugs available: ${patientWithFormulary.plan.formularyDrugs.length}`);
@@ -1275,6 +1315,30 @@ export async function generateLLMRecommendations(
     annualCost: ci.drug.annualCostWAC?.toNumber() || null,
     reasons: ci.reasons,
   }));
+
+  // Final summary
+  console.log(`\n${'='.repeat(80)}`);
+  console.log(`━━━ FINAL RECOMMENDATIONS SUMMARY ━━━`);
+  console.log(`${'='.repeat(80)}\n`);
+
+  recommendations.slice(0, 3).forEach((rec, idx) => {
+    console.log(`${idx + 1}. ${rec.drugName} (Tier ${rec.tier})`);
+    console.log(`   Type: ${rec.type}`);
+    console.log(`   Formulation: ${rec.strength || 'N/A'} ${rec.formulation || ''}`);
+    console.log(`   Dosing: ${rec.newDose} ${rec.newFrequency}`);
+    console.log(`   Rationale: ${rec.rationale.substring(0, 150)}...`);
+    console.log(`   Citations: ${rec.citations?.length || 0}`);
+    console.log(`   Cost Savings: ${rec.annualSavings ? `$${rec.annualSavings.toFixed(2)} (${rec.savingsPercent?.toFixed(1)}%)` : 'N/A'}`);
+    console.log('');
+  });
+
+  console.log(`📊 Summary:`);
+  console.log(`   Total recommendations: ${recommendations.slice(0, 3).length}`);
+  console.log(`   Contraindicated drugs: ${contraindicatedDrugsFormatted.length}`);
+  console.log(`   Formulary reference drugs: ${formularyReference.length}`);
+  console.log(`\n${'='.repeat(80)}`);
+  console.log(`━━━ RECOMMENDATION GENERATION COMPLETE ━━━`);
+  console.log(`${'='.repeat(80)}\n`);
 
   return {
     recommendations: recommendations.slice(0, 3),
