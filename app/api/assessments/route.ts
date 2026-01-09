@@ -16,6 +16,7 @@ export async function POST(request: NextRequest) {
       diagnosis,
       hasPsoriaticArthritis,
       contraindications,
+      contraindicationOther,
       isStable,
       bmi,
       failedTherapies,
@@ -60,6 +61,7 @@ export async function POST(request: NextRequest) {
         hasPsoriaticArthritis: hasPsoriaticArthritis || false,
         dlqiScore: dlqiScore,
         bmi: bmi || null,
+        contraindicationOther: contraindicationOther || null,
         // Store current biologic info for PHI-free assessments
         currentBiologicName: currentBiologic?.drugName || null,
         currentBiologicDose: currentBiologic?.dose || null,

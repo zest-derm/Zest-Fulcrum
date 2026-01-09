@@ -309,6 +309,7 @@ model Assessment {
   hasPsoriaticArthritis  Boolean        @default(false)
   dlqiScore              Int            // 0-30
   bmi                    String?        // "<25", "25-30", ">30" - for future logic
+  contraindicationOther  String?        @db.Text  // Free text for "Other" contraindication
   currentBiologicName    String?        // Current biologic drug name (for PHI-free assessments)
   currentBiologicDose    String?        // Current biologic dose
   currentBiologicFrequency String?      // Current biologic frequency
@@ -407,7 +408,8 @@ model ProviderFeedback {
   assessmentTimeMinutes   Decimal? @db.Decimal(5, 2)
 
   // NEW: Validation questions
-  formularyAccurate       Boolean?  // Was formulary/literature accurate?
+  formularyAccurate       Boolean?  // Was formulary accurate?
+  literatureAccurate      Boolean?  // Was literature accurate?
   additionalFeedback      String?   @db.Text  // Open-ended feedback
   yearlyRecommendationCost Decimal? @db.Decimal(12, 2)  // Yearly cost of selected recommendation
 

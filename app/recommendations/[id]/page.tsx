@@ -577,14 +577,6 @@ export default async function RecommendationsPage({ params }: PageProps) {
                 citations={(rec.citations as any) || []}
                 recommendationRank={rec.rank}
               />
-
-              {/* Monitoring Plan */}
-              {rec.monitoringPlan && (
-                <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                  <h4 className="font-semibold text-sm mb-1 text-blue-900">Monitoring Plan</h4>
-                  <p className="text-sm text-blue-800">{rec.monitoringPlan}</p>
-                </div>
-              )}
             </div>
           );
         })}

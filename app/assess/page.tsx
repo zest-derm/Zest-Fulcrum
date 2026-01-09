@@ -55,6 +55,7 @@ export default function AssessmentPage() {
     diagnosis: 'PSORIASIS',
     hasPsoriaticArthritis: false,
     contraindications: [] as string[],
+    contraindicationOther: '',
     failedTherapies: [] as string[],
     isStable: true,
     bmi: '' as '' | '<25' | '25-30' | '>30',
@@ -323,6 +324,7 @@ export default function AssessmentPage() {
           diagnosis: formData.diagnosis,
           hasPsoriaticArthritis: formData.hasPsoriaticArthritis,
           contraindications: formData.contraindications,
+          contraindicationOther: formData.contraindicationOther || null,
           failedTherapies: formData.failedTherapies,
           isStable: formData.isStable,
           bmi: formData.bmi || null,
@@ -640,6 +642,24 @@ export default function AssessmentPage() {
                 {label}
               </label>
             ))}
+            <label className="flex items-center">
+              <input
+                type="checkbox"
+                checked={formData.contraindications.includes('OTHER')}
+                onChange={() => toggleContraindication('OTHER')}
+                className="mr-2"
+              />
+              Other
+            </label>
+            {formData.contraindications.includes('OTHER') && (
+              <textarea
+                className="input w-full ml-6 mt-2"
+                rows={3}
+                value={formData.contraindicationOther}
+                onChange={(e) => setFormData(prev => ({ ...prev, contraindicationOther: e.target.value }))}
+                placeholder="Please describe the contraindication..."
+              />
+            )}
           </div>
         </div>
 

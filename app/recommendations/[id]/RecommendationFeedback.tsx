@@ -45,8 +45,8 @@ export default function RecommendationFeedback({
   const [feedbackForm, setFeedbackForm] = useState({
     selectedTier: null as number | null,
     formularyAccurate: null as boolean | null,
+    literatureAccurate: null as boolean | null,
     additionalFeedback: '',
-    yearlyRecommendationCost: '',
     reasonForChoice: '',
     reasonAgainstFirst: '',
     reasonForDeclineAll: '',
@@ -74,8 +74,8 @@ export default function RecommendationFeedback({
     setFeedbackForm({
       selectedTier: selectedRec?.tier || null,
       formularyAccurate: null,
+      literatureAccurate: null,
       additionalFeedback: '',
-      yearlyRecommendationCost: '',
       reasonForChoice: '',
       reasonAgainstFirst: '',
       reasonForDeclineAll: '',
@@ -92,8 +92,8 @@ export default function RecommendationFeedback({
     setFeedbackForm({
       selectedTier: null,
       formularyAccurate: null,
+      literatureAccurate: null,
       additionalFeedback: '',
-      yearlyRecommendationCost: '',
       reasonForChoice: '',
       reasonAgainstFirst: '',
       reasonForDeclineAll: '',
@@ -117,8 +117,8 @@ export default function RecommendationFeedback({
           selectedTier: feedbackForm.selectedTier,
           assessmentTimeMinutes,
           formularyAccurate: feedbackForm.formularyAccurate,
+          literatureAccurate: feedbackForm.literatureAccurate,
           additionalFeedback: feedbackForm.additionalFeedback || null,
-          yearlyRecommendationCost: feedbackForm.yearlyRecommendationCost ? parseFloat(feedbackForm.yearlyRecommendationCost) : null,
           reasonForChoice: feedbackForm.reasonForChoice || null,
           reasonAgainstFirst: feedbackForm.reasonAgainstFirst || null,
           reasonForDeclineAll: feedbackForm.reasonForDeclineAll || null,
@@ -236,10 +236,10 @@ export default function RecommendationFeedback({
                 )}
               </div>
 
-              {/* Was formulary/literature accurate? */}
+              {/* Was formulary accurate? */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Was the referenced formulary/literature accurate?
+                  Was the formulary accurate?
                 </label>
                 <div className="flex gap-4">
                   <label className="flex items-center">
@@ -265,25 +265,34 @@ export default function RecommendationFeedback({
                 </div>
               </div>
 
-              {/* Yearly Cost */}
-              {!isDeclineAll && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    What is the yearly cost of the recommendation you selected? (optional)
-                  </label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-2 text-gray-500">$</span>
+              {/* Was literature accurate? */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Was the literature accurate?
+                </label>
+                <div className="flex gap-4">
+                  <label className="flex items-center">
                     <input
-                      type="number"
-                      step="0.01"
-                      className="w-full pl-7 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
-                      value={feedbackForm.yearlyRecommendationCost}
-                      onChange={(e) => setFeedbackForm({ ...feedbackForm, yearlyRecommendationCost: e.target.value })}
-                      placeholder="0.00"
+                      type="radio"
+                      name="literatureAccurate"
+                      checked={feedbackForm.literatureAccurate === true}
+                      onChange={() => setFeedbackForm({ ...feedbackForm, literatureAccurate: true })}
+                      className="mr-2"
                     />
-                  </div>
+                    Yes
+                  </label>
+                  <label className="flex items-center">
+                    <input
+                      type="radio"
+                      name="literatureAccurate"
+                      checked={feedbackForm.literatureAccurate === false}
+                      onChange={() => setFeedbackForm({ ...feedbackForm, literatureAccurate: false })}
+                      className="mr-2"
+                    />
+                    No
+                  </label>
                 </div>
-              )}
+              </div>
 
               {!isDeclineAll && (
                 <>
