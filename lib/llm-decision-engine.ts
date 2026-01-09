@@ -3,6 +3,11 @@ import { prisma } from './db';
 import { normalizeToGeneric } from './drug-normalizer';
 import { formatCitationsForPrompt } from './citation-llm';
 import {
+  getFDAData,
+  getBlackBoxWarnings,
+  getContraindications,
+} from './fda-drug-data-helper';
+import {
   Patient,
   CurrentBiologic,
   PharmacyClaim,
@@ -624,7 +629,23 @@ async function getLLMRecommendationSuggestions(
     .map(d => {
       const formDetails = [d.strength, d.formulation].filter(Boolean).join(', ');
       const formString = formDetails ? ` [${formDetails}]` : '';
-      return `${d.drugName}${formString} (${d.drugClass}, Tier ${d.tier}, PA: ${d.requiresPA ? 'Yes' : 'No'}, Annual Cost: $${d.annualCostWAC})`;
+
+      // Get FDA safety data
+      const fdaData = getFDAData(d.drugName);
+      const blackBoxWarnings = fdaData?.blackBoxWarnings || [];
+      const fdaContraindications = fdaData?.contraindications || [];
+
+      // Format safety information
+      const safetyInfo: string[] = [];
+      if (blackBoxWarnings.length > 0) {
+        safetyInfo.push(`⚠️ BLACK BOX: ${blackBoxWarnings.slice(0, 2).join('; ')}`);
+      }
+      if (fdaContraindications.length > 0) {
+        safetyInfo.push(`CI: ${fdaContraindications.slice(0, 2).join('; ')}`);
+      }
+      const safetyString = safetyInfo.length > 0 ? ` | ${safetyInfo.join(' | ')}` : '';
+
+      return `${d.drugName}${formString} (${d.drugClass}, Tier ${d.tier}, PA: ${d.requiresPA ? 'Yes' : 'No'}, Annual Cost: $${d.annualCostWAC}${safetyString})`;
     })
     .join('\n');
 
@@ -662,11 +683,18 @@ ${currentBrandName ? `Current drug tier: Tier ${currentTier}` : ''}
 Available Formulary Options (current drug excluded, deduplicated by generic, sorted by tier):
 ${formularyText}
 
+📋 FDA SAFETY DATA LEGEND:
+- ⚠️ BLACK BOX: FDA's most serious warnings (e.g., serious infections, malignancy risk)
+- CI: FDA-listed contraindications (conditions where drug should not be used)
+- This data is from official FDA drug labels (updated quarterly via openFDA API)
+- Consider these warnings when recommending drugs, especially with patient contraindications
+
 ⚠️ CRITICAL CONSTRAINTS:
 1. Cost savings is THE PRIMARY GOAL. ALWAYS prioritize Tier ${lowestTierInFormulary} drugs first.
 2. You MUST ONLY recommend drugs from the list above. Do NOT suggest drugs not explicitly listed.
 3. The tier shown above is the ACTUAL tier in this patient's formulary - do not make assumptions.
 4. Start from the TOP of the list (lowest tier) and work down - higher tiers only if clinically necessary.
+5. Factor in FDA safety data (black box warnings, contraindications) when making recommendations.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 PEER-REVIEWED CLINICAL CITATIONS
