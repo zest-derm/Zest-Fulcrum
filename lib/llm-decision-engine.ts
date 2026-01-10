@@ -427,14 +427,11 @@ function checkDrugContraindications(
         }
       }
 
-      // ALL BIOLOGICS - SERIOUS INFECTIONS
+      // ACTIVE_INFECTION - Skip filtering, handle as warning banner instead
+      // (Active infection is a timing issue, not a drug selection issue)
       if (ciType === 'ACTIVE_INFECTION') {
-        reasons.push({
-          type: ciType,
-          severity: 'ABSOLUTE',
-          reason: 'Active infection must be treated and resolved before starting any biologic therapy. Biologics suppress immune function and can worsen infections.',
-          details: ci.details
-        });
+        // Don't add to contraindication reasons - this will be shown as a warning banner
+        continue;
       }
       if (ciType === 'OPPORTUNISTIC_INFECTION') {
         reasons.push({

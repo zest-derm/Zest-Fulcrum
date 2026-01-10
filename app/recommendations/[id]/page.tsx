@@ -194,14 +194,11 @@ export default async function RecommendationsPage({ params }: PageProps) {
           }
         }
 
-        // ALL BIOLOGICS - SERIOUS INFECTIONS
+        // ACTIVE_INFECTION - Skip filtering, handle as warning banner instead
+        // (Active infection is a timing issue, not a drug selection issue)
         if (ciType === 'ACTIVE_INFECTION') {
-          reasons.push({
-            type: ciType,
-            severity: 'ABSOLUTE',
-            reason: 'Active infection must be treated and resolved before starting any biologic therapy. Biologics suppress immune function and can worsen infections.',
-            details: ci.details
-          });
+          // Don't add to contraindication reasons - this will be shown as a warning banner
+          continue;
         }
 
         // ALL BIOLOGICS - PREGNANCY
@@ -380,6 +377,24 @@ export default async function RecommendationsPage({ params }: PageProps) {
           </span>
         </div>
       </div>
+
+      {/* Active Infection Warning */}
+      {assessment.patient?.contraindications?.some(ci => ci.type === 'ACTIVE_INFECTION') && (
+        <div className="mb-6 p-4 bg-yellow-50 border-2 border-yellow-400 rounded-lg">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="w-6 h-6 text-yellow-600 flex-shrink-0 mt-0.5" />
+            <div>
+              <h3 className="font-semibold text-yellow-900 mb-1">⚠️ Active Infection Present</h3>
+              <p className="text-sm text-yellow-800">
+                Active infection must be treated and resolved before initiating any biologic therapy.
+                The recommendations below are provided for planning purposes and should only be started
+                after the infection has been successfully treated. Biologics suppress immune function
+                and can worsen active infections.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Assessment Info */}
       {quadrantLabel !== 'N/A' && (
